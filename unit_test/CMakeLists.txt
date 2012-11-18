@@ -1,0 +1,7 @@
+INCLUDE_DIRECTORIES(../include)
+ADD_EXECUTABLE(client test_client.cpp)
+ADD_EXECUTABLE(server test_server.cpp)
+ADD_EXECUTABLE(chan test_chan.cpp)
+TARGET_LINK_LIBRARIES(client boost_context boost_iostreams boost_system)
+TARGET_LINK_LIBRARIES(server boost_context boost_iostreams boost_system)
+TARGET_LINK_LIBRARIES(chan boost_context boost_iostreams boost_system)
