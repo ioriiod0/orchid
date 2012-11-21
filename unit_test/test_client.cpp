@@ -57,7 +57,7 @@ public:
 
 int main() {
     orchid::scheduler sche;
-    for (int i=0;i<100;++i) {
+    for (int i=0;i<1000;++i) {
         client_coroutine* co = new client_coroutine(sche);
         sche.spawn(co);
     }
