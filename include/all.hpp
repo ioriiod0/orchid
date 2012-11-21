@@ -10,27 +10,23 @@
 #define __ORCHID_ALL_H__
 
 #define USE_BOOST_ASIO
-#define USE_BOOST_CONTEXT
 #define USE_BOOST_IOSTREAMS
 
 
 #include <memory>
 
-#ifdef USE_BOOST_CONTEXT
 #include "coroutine/scheduler.hpp"
 #include "coroutine/coroutine.hpp"
-#include "coroutine/semaphore.hpp"
 #include "coroutine/chan.hpp"
-#endif
+#include "coroutine/scheduler_group.hpp"
 
-#ifdef USE_BOOST_ASIO
-#include <boost/asio.hpp>
+
 #include "asio/connector.hpp"
 #include "asio/acceptor.hpp"
 #include "asio/socket.hpp"
 #include "asio/timer.hpp"
 #include "asio/io_service.hpp"
-#endif
+
 
 #ifdef USE_BOOST_IOSTREAMS
 #include "utility/iostreams_helper.hpp"
@@ -40,20 +36,20 @@ namespace orchid {
     
 
 typedef detail::scheduler_basic<detail::coroutine_basic,detail::io_service> scheduler;
+typedef detail::scheduler_group_basic<scheduler> scheduler_group;
 typedef detail::coroutine_basic<scheduler> coroutine;
-typedef detail::semaphore_basic<coroutine> semaphore;
 typedef detail::socket_basic<coroutine> socket;
 typedef detail::acceptor_basic<coroutine> acceptor;
 typedef detail::connector_basic<coroutine> connector;
 typedef detail::timer_basic<coroutine> timer;
 typedef detail::stream_device_basic<socket> tcp_device;
 //////trick for template class typedef../////
-template <typename T,typename Alloc = std::allocator<T> >
-class chan:public detail::chan_basic<T,semaphore,Alloc> {
+template <typename T,std::size_t N>
+class chan:public detail::chan_basic<coroutine,T,N> {
 public:
-    typedef chan<T,Alloc> self_type;
+    typedef chan<T,N> self_type;
 public:
-    chan(std::size_t capacity):detail::chan_basic<T,semaphore,Alloc>(capacity) {
+    chan():detail::chan_basic<coroutine,T,N>() {
 
     }
     ~chan() {

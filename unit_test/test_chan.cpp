@@ -7,7 +7,7 @@
 // ====================================================================================
 
 #include <string>
-#include <iostream>
+#include <stdio.h>
 
 #include "../include/all.hpp"
 
@@ -17,7 +17,7 @@ using std::endl;
 
 class sender_coroutine : public orchid::coroutine {
 public:
-    sender_coroutine(orchid::scheduler& sche,int id,orchid::chan<int>* chan):
+    sender_coroutine(orchid::scheduler& sche,int id,orchid::chan<int,128>* chan):
         orchid::coroutine(sche),id_(id),chan_(chan),timer_(sche.get_io_service(),this) {
 
     }
@@ -30,18 +30,18 @@ public:
         try {
             int i = 0;
             for (;;) {
-                cout<<"sender "<<id_<<" send: "<<i<<endl;
-                timer_.sleep(1000);
-                chan_ -> put(i++,this);
+                //timer_.sleep(1000);
+                chan_ -> enqueue(i++,this);
+                printf("sender %d send: %d\r\n",id_,i);
             }
         } catch (...) {
-            cout<<"error happened!!"<<endl;
+            cout<<"error happened!!\r\n";
         }
 
     }
 
     int id_;
-    orchid::chan<int>* chan_;
+    orchid::chan<int,128>* chan_;
     orchid::timer timer_;
 
 };
@@ -49,7 +49,7 @@ public:
 
 class receiver_coroutine : public orchid::coroutine {
 public:
-    receiver_coroutine(orchid::scheduler& sche,int id,orchid::chan<int>* chan):
+    receiver_coroutine(orchid::scheduler& sche,int id,orchid::chan<int,128>* chan):
         orchid::coroutine(sche),id_(id),chan_(chan) {
 
     }
@@ -62,36 +62,37 @@ public:
         try {
             int i;
             for (;;) {
-                cout<<"receiver "<<id_<<" reveive: "<<i<<endl;
-                chan_ -> get(i,this);
+                //cout<<"receiver "<<id_<<" reveive: "<<i<<endl;
+                chan_ -> dequeue(i,this);
+                printf("receiver %d receive: %d\r\n",id_,i);
             }
         } catch (...) {
-            cout<<"error happened!!"<<endl;
+            cout<<"error happened!!\r\n";
 
         }
 
     }
 
     int id_;
-    orchid::chan<int>* chan_;
+    orchid::chan<int,128>* chan_;
 
 };
 
 
 int main() {
-    orchid::scheduler sche;
-    orchid::chan<int> ch(5);
+    orchid::scheduler_group group(4);
+    orchid::chan<int,128> ch;
 
-    for (int i=0;i<10;++i) {
-        sender_coroutine* co = new sender_coroutine(sche,i,&ch);
-        sche.spawn(co);
+    for (int i=0;i<1000;++i) {
+        sender_coroutine* co = new sender_coroutine(group.get_scheduler(),i,&ch);
+        group.spawn(co);
     }
 
-    for (int i=0;i<1;++i) {
-        receiver_coroutine* co = new receiver_coroutine(sche,i,&ch);
-        sche.spawn(co);
+    for (int i=0;i<100;++i) {
+        receiver_coroutine* co = new receiver_coroutine(group.get_scheduler(),i,&ch);
+        group.spawn(co);
     }
 
 
-    sche.run();
+    group.run();
 }

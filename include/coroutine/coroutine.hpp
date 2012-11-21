@@ -37,7 +37,7 @@ public:
 
 public:
 
-    coroutine_basic(Scheduler& s ):is_dead_(false),sche_(s) {
+    coroutine_basic(Scheduler& s):is_dead_(false),sche_(s) {
         void* st = alloc_.allocate(boost::ctx::default_stacksize());
         ctx_.fc_stack.base = st;
         ctx_.fc_stack.limit = static_cast<char*>(st) - boost::ctx::default_stacksize();

@@ -47,11 +47,6 @@ public:
 public:
 
     void run() {
-        // for (;;) {
-        //     schedule_all();
-        //     if(0 == io_service_.run_one())
-        //         io_service_.reset();
-        // }
         io_service_.run();
     }
 
@@ -61,6 +56,7 @@ public:
 
     void spawn(coroutine_type* co) {
         BOOST_ASSERT(co != NULL);
+        BOOST_ASSERT(&co -> get_scheduler() == this);
         all_.insert(co);
         resume(co);
     }
@@ -89,21 +85,8 @@ public:
     const context_type& ctx() const {
         return ctx_;
     }
+
 private:
-
-    // void schedule_all() {
-    //     while(!readys_.empty()) {
-    //         do_schedule(readys_.front());
-    //         readys_.pop_front();
-    //     }
-    // }
-
-    // void schedule_one() {
-    //     if(!readys_.empty()) {
-    //         do_schedule(readys_.front());
-    //         readys_.pop_front();
-    //     }
-    // }
 
     void do_schedule(coroutine_type* co) {
         //jump to coroutine
@@ -115,7 +98,6 @@ private:
     }
 private:
     context_type ctx_;
-    //std::deque<coroutine_type*> readys_;
     std::set<coroutine_type*> all_;
     io_service_type io_service_;
 };

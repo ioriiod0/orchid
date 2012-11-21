@@ -82,8 +82,8 @@ private:
 
 
 int main() {
-    orchid::scheduler sche;
-    server_coroutine* co = new server_coroutine(sche);
-    sche.spawn(co);
-    sche.run();
+    orchid::scheduler_group group(4);
+    server_coroutine* co = new server_coroutine(group.get_scheduler());
+    group.spawn(co);
+    group.run();
 }
