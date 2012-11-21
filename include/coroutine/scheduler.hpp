@@ -8,7 +8,6 @@
 #ifndef __ORCHID_SCHEDULER_H__
 #define __ORCHID_SCHEDULER_H__
 
-#include <deque>
 #include <set>
 #include <algorithm>
 #include <iostream>
@@ -17,6 +16,7 @@
 #include <boost/function.hpp>
 #include <boost/context/all.hpp>
 #include <boost/utility.hpp>
+#include <boost/bind.hpp>
 
 
 namespace orchid { namespace detail {
@@ -40,32 +40,34 @@ public:
 
     }
     ~scheduler_basic() {
+        io_service_.stop();
         std::for_each(all_.begin(), all_.end(), deleter());
     }
 
 public:
 
     void run() {
-        for (;;) {
-            schedule_all();
-            if(0 == io_service_.run_one())
-                io_service_.reset();
-        }
+        // for (;;) {
+        //     schedule_all();
+        //     if(0 == io_service_.run_one())
+        //         io_service_.reset();
+        // }
+        io_service_.run();
     }
 
-    bool spawn(coroutine_type* co) {
-        if (co) {
-            all_.insert(co);
-            resume(co);
-            return true;
-        } else {
-            return false;
-        }
+    void stop() {
+        io_service_.stop();
+    }
+
+    void spawn(coroutine_type* co) {
+        BOOST_ASSERT(co != NULL);
+        all_.insert(co);
+        resume(co);
     }
 
     void resume(coroutine_type* co) {
         BOOST_ASSERT(co != NULL);
-        readys_.push_back(co);
+        io_service_.post(boost::bind(&self_type::do_schedule,this,co));
     }
 
     std::size_t size() const {
@@ -89,19 +91,19 @@ public:
     }
 private:
 
-    void schedule_all() {
-        while(!readys_.empty()) {
-            do_schedule(readys_.front());
-            readys_.pop_front();
-        }
-    }
+    // void schedule_all() {
+    //     while(!readys_.empty()) {
+    //         do_schedule(readys_.front());
+    //         readys_.pop_front();
+    //     }
+    // }
 
-    void schedule_one() {
-        if(!readys_.empty()) {
-            do_schedule(readys_.front());
-            readys_.pop_front();
-        }
-    }
+    // void schedule_one() {
+    //     if(!readys_.empty()) {
+    //         do_schedule(readys_.front());
+    //         readys_.pop_front();
+    //     }
+    // }
 
     void do_schedule(coroutine_type* co) {
         //jump to coroutine
@@ -113,7 +115,7 @@ private:
     }
 private:
     context_type ctx_;
-    std::deque<coroutine_type*> readys_;
+    //std::deque<coroutine_type*> readys_;
     std::set<coroutine_type*> all_;
     io_service_type io_service_;
 };

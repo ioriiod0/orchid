@@ -15,7 +15,9 @@
 #include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
 
+#include "io_service.hpp"
 #include "socket.hpp"
+
 
 namespace orchid { namespace detail {
 
@@ -23,25 +25,11 @@ template <typename Coroutine>
 class connector_basic {
 public:
     typedef socket_basic<Coroutine> socket_type;
-    typedef boost::asio::io_service io_service_type;
+    typedef io_service io_service_type;
     typedef connector_basic<Coroutine> self_type;
     typedef Coroutine coroutine_type;
     typedef coroutine_type* coroutine_pointer;
     typedef boost::asio::ip::tcp::resolver resolver_type;
-
-    // struct connect_handler {
-    //     connect_handler(coroutine_pointer co,boost::system::error_code& e)
-    //         :co_(co),e_(e) {
-    //     }
-
-    //     void operator()(const boost::system::error_code& e,) {
-    //         e_ = e;
-    //         co_ -> resume();
-    //     }
-
-    //     boost::system::error_code& e_;
-    //     coroutine_pointer co_;
-    // };
 
     struct io_handler {
         io_handler(coroutine_pointer co,
@@ -65,12 +53,12 @@ public:
     };
 
 public:
-    connector_basic(io_service_type& io_s):resolver_(io_s),coroutine_(NULL) {
+    connector_basic(io_service_type& io_s):io_service_(io_s),resolver_(io_s.get_impl()),coroutine_(NULL) {
 
     }
 
     connector_basic(io_service_type& io_s,coroutine_pointer p)
-        :resolver_(io_s),coroutine_(p) {
+        :io_service_(io_s),resolver_(io_s.get_impl()),coroutine_(p) {
 
     }
 
@@ -81,7 +69,7 @@ public:
 
     socket_type* connect(const std::string& host,const std::string& port) {
         BOOST_ASSERT(coroutine_ != NULL);
-        socket_type* p = new socket_type(resolver_.get_io_service());
+        socket_type* p = new socket_type(io_service_);
         boost::system::error_code e;
         boost::asio::ip::tcp::resolver::iterator start;
         boost::asio::ip::tcp::resolver::iterator end;
@@ -122,7 +110,15 @@ public:
         return coroutine_ != NULL;
     }
 
+    const io_service_type& get_io_service() const {
+        return io_service_;
+    }
+
+    io_service_type& get_io_service() {
+        return io_service_;
+    }
 private:
+    io_service_type& io_service_;
     resolver_type resolver_;
     coroutine_pointer coroutine_;
 };

@@ -41,7 +41,7 @@ public:
         }
     }
 
-    void V(coroutine_pointer co) {
+    void V() {
         ++n_;
         if(n_ <= 0) {
             queues_.front() -> resume();

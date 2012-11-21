@@ -36,7 +36,7 @@ public:
             data_[w_++] = t;
             if(w_ == capacity_) w_ = 0;
             ++size_;
-            r_semaphore_.V(co);
+            r_semaphore_.V();
         
     }
 
@@ -45,7 +45,7 @@ public:
         v = data_[r_++];
         if(r_ == capacity_) r_ = 0;
         --size_;
-        w_semaphore_.V(co);
+        w_semaphore_.V();
     }
 
     std::size_t size() {

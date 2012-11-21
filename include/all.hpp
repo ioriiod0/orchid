@@ -28,6 +28,8 @@
 #include "asio/connector.hpp"
 #include "asio/acceptor.hpp"
 #include "asio/socket.hpp"
+#include "asio/timer.hpp"
+#include "asio/io_service.hpp"
 #endif
 
 #ifdef USE_BOOST_IOSTREAMS
@@ -37,13 +39,14 @@
 namespace orchid {
     
 
-typedef detail::scheduler_basic<detail::coroutine_basic,boost::asio::io_service> scheduler;
+typedef detail::scheduler_basic<detail::coroutine_basic,detail::io_service> scheduler;
 typedef detail::coroutine_basic<scheduler> coroutine;
 typedef detail::semaphore_basic<coroutine> semaphore;
 typedef detail::socket_basic<coroutine> socket;
 typedef detail::acceptor_basic<coroutine> acceptor;
 typedef detail::connector_basic<coroutine> connector;
-typedef detail::tcp_device_basic<socket> tcp_device;
+typedef detail::timer_basic<coroutine> timer;
+typedef detail::stream_device_basic<socket> tcp_device;
 //////trick for template class typedef../////
 template <typename T,typename Alloc = std::allocator<T> >
 class chan:public detail::chan_basic<T,semaphore,Alloc> {

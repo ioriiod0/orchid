@@ -15,7 +15,9 @@
 #include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
 
+#include "io_service.hpp"
 #include "socket.hpp"
+
 
 namespace orchid { namespace detail {
 
@@ -23,7 +25,7 @@ template <typename Coroutine>
 class acceptor_basic {
 public:
     typedef socket_basic<Coroutine> socket_type;
-    typedef boost::asio::io_service io_service_type;
+    typedef io_service io_service_type;
     typedef acceptor_basic<Coroutine> self_type;
     typedef Coroutine coroutine_type;
     typedef coroutine_type* coroutine_pointer;
@@ -46,12 +48,12 @@ public:
 
 public:
     acceptor_basic(io_service_type& io_s):
-        acceptor_(io_s),coroutine_(NULL),resolver_(io_s) {
+        io_service_(io_s),acceptor_(io_s.get_impl()),coroutine_(NULL),resolver_(io_s.get_impl()) {
 
     }
 
     acceptor_basic(io_service_type& io_s,coroutine_pointer p):
-       acceptor_(io_s),coroutine_(p),resolver_(io_s) {
+       io_service_(io_s),acceptor_(io_s.get_impl()),coroutine_(p),resolver_(io_s.get_impl()) {
 
     }
 
@@ -74,7 +76,7 @@ public:
 
     socket_type* accept() {
         BOOST_ASSERT(coroutine_ != NULL);
-        socket_type* p = new socket_type(acceptor_.get_io_service());
+        socket_type* p = new socket_type(io_service_);
         boost::system::error_code e;
         accept_handler handler(coroutine_,e);
         acceptor_.async_accept(p -> get_impl(), handler);
@@ -112,7 +114,16 @@ public:
         acceptor_.close();
     }
 
+    const io_service_type& get_io_service() const {
+        return io_service_;
+    }
+
+    io_service_type& get_io_service() {
+        return io_service_;
+    }
+
 private:
+    io_service_type& io_service_;
     impl_type acceptor_;
     coroutine_pointer coroutine_;
     resolver_type resolver_;

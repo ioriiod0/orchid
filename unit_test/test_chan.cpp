@@ -18,7 +18,7 @@ using std::endl;
 class sender_coroutine : public orchid::coroutine {
 public:
     sender_coroutine(orchid::scheduler& sche,int id,orchid::chan<int>* chan):
-        orchid::coroutine(sche),id_(id),chan_(chan) {
+        orchid::coroutine(sche),id_(id),chan_(chan),timer_(sche.get_io_service(),this) {
 
     }
 
@@ -31,17 +31,18 @@ public:
             int i = 0;
             for (;;) {
                 cout<<"sender "<<id_<<" send: "<<i<<endl;
+                timer_.sleep(1000);
                 chan_ -> put(i++,this);
             }
         } catch (...) {
             cout<<"error happened!!"<<endl;
-
         }
 
     }
 
     int id_;
     orchid::chan<int>* chan_;
+    orchid::timer timer_;
 
 };
 
@@ -79,9 +80,9 @@ public:
 
 int main() {
     orchid::scheduler sche;
-    orchid::chan<int> ch(100);
+    orchid::chan<int> ch(5);
 
-    for (int i=0;i<2;++i) {
+    for (int i=0;i<10;++i) {
         sender_coroutine* co = new sender_coroutine(sche,i,&ch);
         sche.spawn(co);
     }

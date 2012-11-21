@@ -14,17 +14,17 @@
 namespace orchid { namespace detail {
 
 template <typename Socket>
-class tcp_device_basic 
+class stream_device_basic 
 {
 public:
     //////////////////////////////////////
     typedef char char_type;
     typedef boost::iostreams::bidirectional_device_tag category;
 public:
-    tcp_device_basic(Socket& sock):sock_(sock) {
+    stream_device_basic(Socket& sock):sock_(sock) {
 
     }
-    ~tcp_device_basic() {
+    ~stream_device_basic() {
         
     }
 public:

@@ -17,6 +17,7 @@
 #include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
 
+#include "io_service.hpp"
 
 
 namespace orchid { namespace detail {
@@ -28,7 +29,7 @@ class socket_basic:boost::noncopyable
 public:
     ////////////////////////////////////////
     typedef boost::asio::ip::tcp::socket impl_type;
-    typedef boost::asio::io_service io_service_type;
+    typedef io_service io_service_type;
     typedef socket_basic<Coroutine> self_type;
     typedef Coroutine coroutine_type;
     typedef coroutine_type* coroutine_pointer;
@@ -51,12 +52,12 @@ public:
 
 public:
     socket_basic(io_service_type& io_s):
-        coroutine_(NULL),socket_(io_s) {
+        io_service_(io_s),coroutine_(NULL),socket_(io_s.get_impl()) {
 
     }
 
     socket_basic(io_service_type& io_s,coroutine_pointer p):
-        coroutine_(p),socket_(io_s) {
+        io_service_(io_s),coroutine_(p),socket_(io_s.get_impl()) {
 
     }
 
@@ -121,9 +122,18 @@ public:
         socket_.close();
     }
 
+    const io_service_type& get_io_service() const {
+        return io_service_;
+    }
+
+    io_service_type& get_io_service() {
+        return io_service_;
+    }
+
 
 
 private:
+    io_service_type& io_service_;
     coroutine_pointer coroutine_;
     impl_type socket_;
 
