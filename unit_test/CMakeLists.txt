@@ -2,6 +2,23 @@ INCLUDE_DIRECTORIES(../include)
 ADD_EXECUTABLE(client test_client.cpp)
 ADD_EXECUTABLE(server test_server.cpp)
 ADD_EXECUTABLE(chan test_chan.cpp)
+ADD_EXECUTABLE(benchmark_orchid_client benchmark_orchid_client.cpp)
+ADD_EXECUTABLE(benchmark_orchid_server benchmark_orchid_server.cpp)
+ADD_EXECUTABLE(benchmark_asio_client benchmark_asio_client.cpp)
+ADD_EXECUTABLE(benchmark_asio_server benchmark_asio_server.cpp)
+ADD_EXECUTABLE(chat_client chat_client.cpp)
+ADD_EXECUTABLE(chat_server chat_server.cpp)
+
+
+
 TARGET_LINK_LIBRARIES(client boost_context boost_iostreams boost_system boost_thread)
 TARGET_LINK_LIBRARIES(server boost_context boost_iostreams boost_system boost_thread)
 TARGET_LINK_LIBRARIES(chan boost_context boost_iostreams boost_system boost_thread)
+TARGET_LINK_LIBRARIES(benchmark_orchid_client boost_context boost_iostreams boost_system boost_thread)
+TARGET_LINK_LIBRARIES(benchmark_orchid_server boost_context boost_iostreams boost_system boost_thread)
+TARGET_LINK_LIBRARIES(benchmark_asio_client boost_system boost_thread)
+TARGET_LINK_LIBRARIES(benchmark_asio_server boost_thread boost_system)
+TARGET_LINK_LIBRARIES(chat_client boost_context boost_system boost_iostreams boost_thread)
+TARGET_LINK_LIBRARIES(chat_server boost_context boost_system boost_iostreams boost_thread)
+
+

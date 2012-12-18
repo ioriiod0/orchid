@@ -7,83 +7,54 @@
 // ====================================================================================
 
 
+#include <iterator>
+#include <algorithm>
 #include <string>
 #include <iostream>
 #include <boost/iostreams/stream.hpp>
-
+#include <boost/iostreams/copy.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include "../include/all.hpp"
 
 using std::string;
 using std::cout;
+using std::cerr;
 using std::endl;
 
 
+const static std::size_t STACK_SIZE = 16*1024;
 
-class client_coroutine : public orchid::coroutine {
-public:
-    client_coroutine(orchid::scheduler& sche,orchid::socket* sock):
-        orchid::coroutine(sche),
-        sock_(sock) {
-        sock_ -> attach(this);
+typedef boost::shared_ptr<orchid::socket> socket_ptr;
+
+void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
+    string str;
+    orchid::tcp_ostream out(*sock,co);
+    orchid::tcp_istream in(*sock,co);
+    for(std::string str;std::getline(in, str) && out;)
+    {
+        out<<str<<endl;
     }
+  
+}
 
-    virtual ~client_coroutine() {
-        delete sock_;
-        cout<<"i am done!!"<<endl;
-    }
-
-    virtual void run() {
-        try {
-            string str;
-            for (;;) {
-                boost::iostreams::stream<orchid::tcp_device> tcp_stream(*sock_);
-                tcp_stream >> str;
-                cout << str << endl;
-                tcp_stream << "pong" <<endl;
-            }
-        } catch (boost::system::system_error& e) {
-            cout<<e.code()<<" "<<e.what()<<endl;
+void handle_accept(orchid::coroutine_handle co) {
+    try {
+        orchid::acceptor acceptor(co -> get_scheduler().get_io_service());
+        acceptor.bind_and_listen("5678",true);
+        for(;;) {
+            socket_ptr sock(new orchid::socket(co -> get_scheduler().get_io_service()));
+            acceptor.accept(*sock,co);
+            co -> get_scheduler().spawn(boost::bind(handle_io,_1,sock),STACK_SIZE);
         }
     }
-
-    orchid::socket* sock_;
-};
-
-class server_coroutine: public orchid::coroutine {
-public:
-    server_coroutine(orchid::scheduler& sche):
-        orchid::coroutine(sche),
-        acceptor_(sche.get_io_service(),this) {
-
-        }
-    virtual ~server_coroutine() {
-
+    catch(boost::system::system_error& e) {
+        cerr<<e.code()<<" "<<e.what()<<endl;
     }
-public:
-    virtual void run() {
-        try {
-            acceptor_.bind_and_listen("5678");
-            for(;;) {
-                orchid::socket* sock = acceptor_.accept();
-                cout<<"accept success!"<<endl;
-                client_coroutine* co = new client_coroutine(get_scheduler(),sock);
-                get_scheduler().spawn(co);
-            }
-        }
-        catch(boost::system::system_error& e) {
-            cout<<e.code()<<" "<<e.what()<<endl;
-        }
-    }
-private:
-    orchid::acceptor acceptor_;
-};
-
-
+}
 
 int main() {
-    orchid::scheduler_group group(4);
-    server_coroutine* co = new server_coroutine(group.get_scheduler());
-    group.spawn(co);
-    group.run();
+    orchid::scheduler sche;
+    sche.spawn(boost::bind(handle_accept,_1),STACK_SIZE);
+    sche.run();
 }

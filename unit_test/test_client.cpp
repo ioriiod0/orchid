@@ -10,56 +10,57 @@
 #include <string>
 #include <iostream>
 #include <boost/iostreams/stream.hpp>
-
+#include <boost/iostreams/copy.hpp>
+#include <signal.h>
 
 #include "../include/all.hpp"
 
 using std::string;
 using std::cout;
+using std::cerr;
 using std::endl;
 
-class client_coroutine : public orchid::coroutine {
-public:
-    client_coroutine(orchid::scheduler& sche):
-        orchid::coroutine(sche),
-        connector_(sche.get_io_service(),this),
-        sock_(NULL) {
+const static std::size_t STACK_SIZE = 16*1024;
 
-    }
-
-    virtual ~client_coroutine() {
-        delete sock_;
-        cout<<"i am done!!"<<endl;
-    }
-
-    virtual void run() {
+void handle_io(orchid::coroutine_handle co) {
+        orchid::socket sock_(co -> get_scheduler().get_io_service());
         try {
+            sock_.connect("127.0.0.1","5678",co);
+            orchid::tcp_istream in(sock_,co);
+            orchid::tcp_ostream out(sock_,co);
+            in.exceptions(std::istream::failbit | std::istream::badbit);
             string str;
-            sock_ = connector_.connect("127.0.0.1","5678");
-            sock_ -> attach(this);
-            cout<<"connect success!"<<endl;
             for (;;) {
-                boost::iostreams::stream<orchid::tcp_device> tcp_stream(*sock_);
-                tcp_stream << "ping" <<endl;
-                tcp_stream >> str;
+                out << "hello world !!!!" <<endl;
+                std::getline(in, str);
                 cout << str << endl;
             }
-        } catch (boost::system::system_error& e) {
-            cout<<e.code()<<" "<<e.what()<<endl;
-
+        } catch (const boost::system::system_error& e) {
+            cerr<<e.code()<<" "<<e.what()<<endl;
         }
+}
 
+void handle_sig(orchid::coroutine_handle co) {
+    orchid::signal sig(co -> get_scheduler().get_io_service());
+    try {
+        sig.add(SIGINT);
+        sig.add(SIGTERM);
+        sig.wait(co);
+        cout<<"sig caught"<<endl;
+        co->get_scheduler().stop();
+
+    } catch (const boost::system::system_error& e) {
+        cerr<<e.code()<<" "<<e.what()<<endl;
     }
+}
 
-    orchid::connector connector_;
-    orchid::socket* sock_;
-};
 
 int main() {
     orchid::scheduler sche;
-    for (int i=0;i<1000;++i) {
-        client_coroutine* co = new client_coroutine(sche);
-        sche.spawn(co);
+    cout<<orchid::coroutine::default_stack_size()<<endl;
+    sche.spawn(handle_sig,orchid::coroutine::minimum_stack_size());
+    for (int i=0;i<100;++i) {
+        sche.spawn(handle_io);
     }
     sche.run();
 }

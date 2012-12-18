@@ -28,9 +28,9 @@ public:
     typedef io_service io_service_type;
     typedef acceptor_basic<Coroutine> self_type;
     typedef Coroutine coroutine_type;
-    typedef coroutine_type* coroutine_pointer;
+    typedef boost::shared_ptr<coroutine_type> coroutine_pointer;
     typedef boost::asio::ip::tcp::acceptor impl_type;
-    typedef boost::asio::ip::tcp::resolver resolver_type;
+    typedef typename impl_type::native_handle_type native_handle_type;
 
     struct accept_handler {
         accept_handler(coroutine_pointer co,boost::system::error_code& e):
@@ -48,24 +48,19 @@ public:
 
 public:
     acceptor_basic(io_service_type& io_s):
-        io_service_(io_s),acceptor_(io_s.get_impl()),coroutine_(NULL),resolver_(io_s.get_impl()) {
-
-    }
-
-    acceptor_basic(io_service_type& io_s,coroutine_pointer p):
-       io_service_(io_s),acceptor_(io_s.get_impl()),coroutine_(p),resolver_(io_s.get_impl()) {
+        io_service_(io_s),acceptor_(io_s.get_impl()) {
 
     }
 
     ~acceptor_basic() {
-        if(acceptor_.is_open())
-            acceptor_.close();
+        close();
     }
 public:
     void bind_and_listen(const std::string& port,
                         bool reuse_addr = false) {
+        boost::asio::ip::tcp::resolver resolver(acceptor_.get_io_service());
         boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(),port);
-        boost::asio::ip::tcp::endpoint endpoint = *resolver_.resolve(query);
+        boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
         acceptor_.open(endpoint.protocol());
         if(reuse_addr) {
             acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
@@ -74,29 +69,19 @@ public:
         acceptor_.listen();
     }
 
-    socket_type* accept() {
-        BOOST_ASSERT(coroutine_ != NULL);
-        socket_type* p = new socket_type(io_service_);
+    void accept(socket_type& sock,coroutine_pointer co) {
+        BOOST_ASSERT(co != NULL);
         boost::system::error_code e;
-        accept_handler handler(coroutine_,e);
-        acceptor_.async_accept(p -> get_impl(), handler);
+        accept_handler handler(co,e);
+        acceptor_.async_accept(sock.get_impl(), handler);
         ///////////////////////////////////
-        coroutine_ -> yield();
+        co -> yield();
         ////////////////////////////////////
         if(e) {
             throw boost::system::system_error(e);
         }
-        return p;
     }
 
-    void attach(coroutine_pointer p) {
-        BOOST_ASSERT(p != NULL);
-        coroutine_ = p;
-    }
-
-    bool is_attached() const {
-        return coroutine_ != NULL;
-    }
 
     void is_open() const {
         return acceptor_.is_open();
@@ -110,7 +95,12 @@ public:
         return acceptor_;
     }
 
+    native_handle_type native_handle() {
+        return acceptor_.native_handle();
+    }
+
     void close() {
+        //if(acceptor_.is_open())
         acceptor_.close();
     }
 
@@ -125,8 +115,6 @@ public:
 private:
     io_service_type& io_service_;
     impl_type acceptor_;
-    coroutine_pointer coroutine_;
-    resolver_type resolver_;
 };
 
 }

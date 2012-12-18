@@ -13,53 +13,124 @@
 #include <boost/assert.hpp>
 #include <boost/context/all.hpp>
 #include <boost/function.hpp>
+#include <boost/bind.hpp>
 #include <boost/utility.hpp>
+#include <boost/atomic.hpp>
+#include <boost/scoped_ptr.hpp>
+#include <boost/enable_shared_from_this.hpp>
+#include <boost/function.hpp>
+
+#include "stack_allocator.hpp"
+#include "scheduler.hpp"
 
 namespace orchid { namespace detail {
 
 
-
-template <typename Scheduler>
-class coroutine_basic:boost::noncopyable {
+class stack_unwind_exception {
 public:
-    typedef boost::ctx::fcontext_t context_type;
+    stack_unwind_exception() {
+
+    }
+    ~stack_unwind_exception() {
+
+    }
+};
+
+
+template <typename Scheduler,typename Alloc = stack_allocator>
+class coroutine_basic
+    :public boost::enable_shared_from_this<coroutine_basic<Scheduler,stack_allocator> >,
+    boost::noncopyable {
+public:
+    typedef coroutine_basic<Scheduler,Alloc> self_type;
+    typedef Alloc allocator_type;
     typedef Scheduler scheduler_type;
     typedef typename Scheduler::io_service_type io_service_type;
-    typedef coroutine_basic<Scheduler> self_type;
+    typedef boost::context::fcontext_t context_type;
+    typedef context_type* context_pointer_type;
+    typedef boost::shared_ptr<self_type> coroutine_handle;
+    typedef boost::function<void(coroutine_handle)> func_type;
+
+    static std::size_t default_stack_size() {
+        return allocator_type::default_stack_size();
+    }
+
+    static std::size_t minimum_stack_size() {
+        return allocator_type::minimum_stack_size();
+    }
+
+    static std::size_t maximum_stack_size() {
+        return allocator_type::maximum_stack_size();
+    }
 
     static void trampoline(intptr_t q) 
     {
         self_type* p = (self_type*)q;
-        p -> run();
-        p -> is_dead_ = true;
-        boost::ctx::jump_fcontext(&p->ctx(),&p->sche_.ctx(),0); //NOTITY SCHEDULER that coroutine is dead
+        try {
+            p -> f_(p -> get_handle());
+        } catch(stack_unwind_exception& e) {
+            //do nothing.
+            //std::cout<<"ex111!!"<<std::endl;
+        }
+        p -> is_dead_.store(true);
+        boost::context::jump_fcontext(&p->ctx(),&p->sche_.ctx(),0); //NOTITY SCHEDULER that coroutine is dead
     }
 
 public:
 
-    coroutine_basic(Scheduler& s):is_dead_(false),sche_(s) {
-        void* st = alloc_.allocate(boost::ctx::default_stacksize());
-        ctx_.fc_stack.base = st;
-        ctx_.fc_stack.limit = static_cast<char*>(st) - boost::ctx::default_stacksize();
-        boost::ctx::make_fcontext(&ctx_, trampoline);
+    template <typename F>
+    coroutine_basic(Scheduler& s,const F& f,std::size_t stack_size)
+        :is_dead_(false),
+        is_stoped_(false),
+        alloc_(),
+        f_(f),
+        sche_(s) {
+            stack_size_ = allocator_type::adjust_stack_size(stack_size);
+            stack_pointer_ = alloc_.allocate(stack_size_);
+            ctx_ = boost::context::make_fcontext(stack_pointer_,stack_size_,trampoline);
     }
 
     virtual ~coroutine_basic() {
-        alloc_.deallocate(ctx_.fc_stack.base, boost::ctx::default_stacksize());
+        alloc_.deallocate(stack_pointer_,stack_size_);
     }
 
 public:
+    /////////////////////////////接口函数////////////////////////////////////////
 
-    virtual void run() = 0;
-
+    //放弃运行，切换至调度器的上下文中
+    //该函数只应该在当前协程的run函数中调用
     void yield() {
-        boost::ctx::jump_fcontext(&ctx_,&sche_.ctx(),0);
+        BOOST_ASSERT(!is_dead());
+        if(is_stoped()) {
+            throw stack_unwind_exception();
+        }
+        boost::context::jump_fcontext(&ctx(),&sche_.ctx(),0);
+        if(is_stoped())
+            throw stack_unwind_exception();
     }
 
+    //恢复当前协程的上下文，但是并不是立即切换，
+    //而是将切换的请求在调度器的IO_SERVICE里面排队，等待切换回上次运行的现场
+    //该函数是线程安全的，可以被运行在其他调度器中的协程调用。
     void resume() {
-        sche_.resume(this);
+        if(is_stoped() || is_dead())
+            return;
+        sche_.resume(this -> shared_from_this());
+    }
+    //预先发送一个resume请求，并放弃运行，等待下次被切换到CPU上。
+    //该函数只应该在当前协程的run函数中调用。
+    void sleep() {
+        resume();
+        yield();
+    }
+    //获取当前协程的运行状态。
+    //该函数是线程安全的。
+    bool is_dead() {
+        return is_dead_.load();
     }
 
+
+    //获取当前协程所在的调度器。
     scheduler_type& get_scheduler() {
         return sche_;
     }
@@ -68,22 +139,40 @@ public:
         return sche_;
     }
 
-    bool is_dead() const {
-        return is_dead_;
+    coroutine_handle get_handle() {
+        return this -> shared_from_this();
     }
 
+    void stop() {
+        is_stoped_.store(true);
+    }
+
+    bool is_stoped() {
+        return is_stoped_.load();
+    }
+
+    std::size_t stack_size() {
+        return stack_size_;
+    }
+
+    ///////////////////////////////内部函数//////////////////////////////////////
+
     context_type& ctx() {
-        return ctx_;
+        return *ctx_;
     }
 
     const context_type& ctx() const {
-        return ctx_;
+        return *ctx_;
     }
 
 private:
-    bool is_dead_;
-    context_type ctx_;
-    boost::ctx::stack_allocator alloc_;
+    boost::atomic_bool is_dead_;
+    boost::atomic_bool is_stoped_;
+    allocator_type alloc_;
+    std::size_t stack_size_;
+    void* stack_pointer_;
+    context_pointer_type ctx_;
+    func_type f_;
     scheduler_type& sche_;
 };
 

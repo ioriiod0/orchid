@@ -8,91 +8,64 @@
 
 #include <string>
 #include <stdio.h>
-
+#include <boost/lexical_cast.hpp>
 #include "../include/all.hpp"
 
 using std::string;
 using std::cout;
 using std::endl;
 
-class sender_coroutine : public orchid::coroutine {
-public:
-    sender_coroutine(orchid::scheduler& sche,int id,orchid::chan<int,128>* chan):
-        orchid::coroutine(sche),id_(id),chan_(chan),timer_(sche.get_io_service(),this) {
 
-    }
 
-    virtual ~sender_coroutine() {
-        cout<<"i am done!!"<<endl;
-    }
+const static std::size_t STACK_SIZE = 64*1024;
 
-    virtual void run() {
-        try {
-            int i = 0;
-            for (;;) {
-                //timer_.sleep(1000);
-                chan_ -> enqueue(i++,this);
-                printf("sender %d send: %d\r\n",id_,i);
-            }
-        } catch (...) {
-            cout<<"error happened!!\r\n";
+
+void sender(orchid::coroutine_handle& co,int id,orchid::chan<int>& ch) {
+    printf("sender%d start!!\r\n",id);
+    try {
+        int i = 0;
+        for (;;) {
+            printf("sender%d send: %d\r\n",id,i);
+            ch.send(i++,co);
         }
-
+    } catch (...) {
+        cout<<"error happened!!\r\n";
     }
 
-    int id_;
-    orchid::chan<int,128>* chan_;
-    orchid::timer timer_;
+}
 
-};
-
-
-class receiver_coroutine : public orchid::coroutine {
-public:
-    receiver_coroutine(orchid::scheduler& sche,int id,orchid::chan<int,128>* chan):
-        orchid::coroutine(sche),id_(id),chan_(chan) {
-
-    }
-
-    virtual ~receiver_coroutine() {
-        cout<<"i am done!!"<<endl;
-    }
-
-    virtual void run() {
-        try {
-            int i;
-            for (;;) {
-                //cout<<"receiver "<<id_<<" reveive: "<<i<<endl;
-                chan_ -> dequeue(i,this);
-                printf("receiver %d receive: %d\r\n",id_,i);
-            }
-        } catch (...) {
-            cout<<"error happened!!\r\n";
-
+void receiver(orchid::coroutine_handle& co,int id,orchid::chan<int>& ch) {
+    try {
+        int i;
+        for (;;) {
+            ch.recv(i,co);
+            printf("receiver%d receive: %d\r\n",id,i);
         }
+    } catch (...) {
+        cout<<"error happened!!\r\n";
 
     }
-
-    int id_;
-    orchid::chan<int,128>* chan_;
-
-};
+}
 
 
-int main() {
+
+int main(int argc,const char* argv[]) {
+    int sender_size = boost::lexical_cast<int>(argv[1]);
+    int receiver_size = boost::lexical_cast<int>(argv[2]);
+    int chan_size = boost::lexical_cast<int>(argv[3]);
+
     orchid::scheduler_group group(4);
-    orchid::chan<int,128> ch;
+    orchid::chan<int> ch(chan_size);
+    int m=0;
 
-    for (int i=0;i<1000;++i) {
-        sender_coroutine* co = new sender_coroutine(group.get_scheduler(),i,&ch);
-        group.spawn(co);
+    for (int i=0;i<sender_size;++i) {
+        group[m++].spawn(boost::bind(sender,_1,i,boost::ref(ch)),STACK_SIZE);
+        if(m==group.size()) m=0;
     }
-
-    for (int i=0;i<100;++i) {
-        receiver_coroutine* co = new receiver_coroutine(group.get_scheduler(),i,&ch);
-        group.spawn(co);
+    for (int i=0;i<receiver_size;++i) {
+        group[m++].spawn(boost::bind(receiver,_1,i,boost::ref(ch)),STACK_SIZE);
+        if(m==group.size()) m=0;
     }
-
 
     group.run();
 }

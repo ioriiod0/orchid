@@ -17,31 +17,34 @@
 #include <boost/context/all.hpp>
 #include <boost/utility.hpp>
 #include <boost/bind.hpp>
+#include <boost/function.hpp>
 
+#include "stack_allocator.hpp"
 
 namespace orchid { namespace detail {
 
-template <template <class> class Coroutine,typename IOservice>
+template <template <class,class> class Coroutine,typename IOservice,typename Alloc = stack_allocator>
 class scheduler_basic:boost::noncopyable {
 public:
-    typedef boost::ctx::fcontext_t context_type;
-    typedef scheduler_basic<Coroutine,IOservice> self_type;
-    typedef Coroutine<self_type> coroutine_type;
+    typedef scheduler_basic<Coroutine,IOservice,Alloc> self_type;
     typedef IOservice io_service_type;
+    typedef Alloc allocator_type;
+    typedef Coroutine<self_type,allocator_type> coroutine_type;
+    typedef boost::shared_ptr<coroutine_type> coroutine_pointer;
+    typedef boost::context::fcontext_t context_type;
 
-    struct deleter {
-        void operator()(coroutine_type* p) {
-            if(p)
-                delete p;
-        }
-    };
 public:
     scheduler_basic() {
 
     }
     ~scheduler_basic() {
-        io_service_.stop();
-        std::for_each(all_.begin(), all_.end(), deleter());
+        stop();
+        typename std::set<coroutine_pointer>::iterator it;
+        for(it = all_.begin();it != all_.end();++it) {
+            boost::context::jump_fcontext(&ctx_,&((*it)->ctx()),(intptr_t)((*it).get()));
+            BOOST_ASSERT((*it) -> is_dead());
+        }
+        all_.clear();
     }
 
 public:
@@ -52,18 +55,26 @@ public:
 
     void stop() {
         io_service_.stop();
+        typename std::set<coroutine_pointer>::iterator it;
+        for(it = all_.begin();it != all_.end();++it) {
+            (*it) -> stop();
+        }
     }
 
-    void spawn(coroutine_type* co) {
-        BOOST_ASSERT(co != NULL);
-        BOOST_ASSERT(&co -> get_scheduler() == this);
-        all_.insert(co);
-        resume(co);
+    template <typename F>
+    void spawn(const F& f,std::size_t stack_size = coroutine_type::default_stack_size()) {
+        coroutine_pointer co(new coroutine_type(*this,f,stack_size));
+        io_service_.post(boost::bind(&self_type::do_spawn,this,co));
     }
 
-    void resume(coroutine_type* co) {
+    void resume(coroutine_pointer co) {
         BOOST_ASSERT(co != NULL);
         io_service_.post(boost::bind(&self_type::do_schedule,this,co));
+    }
+
+    template <typename F>
+    void post(const F& f) {
+        io_service_.post(f);
     }
 
     std::size_t size() const {
@@ -88,17 +99,22 @@ public:
 
 private:
 
-    void do_schedule(coroutine_type* co) {
+    void do_schedule(coroutine_pointer co) {
         //jump to coroutine
-        boost::ctx::jump_fcontext(&ctx_,&co->ctx(),(intptr_t)co);
+        boost::context::jump_fcontext(&ctx_,&co->ctx(),(intptr_t)(co.get()));
         if(co -> is_dead()) {
-            delete co;
             all_.erase(co);
         }
     }
+
+    void do_spawn(coroutine_pointer co) {
+        all_.insert(co);
+        do_schedule(co);
+    }
+
 private:
     context_type ctx_;
-    std::set<coroutine_type*> all_;
+    std::set<coroutine_pointer> all_;
     io_service_type io_service_;
 };
 

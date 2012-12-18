@@ -7,66 +7,130 @@
 // ====================================================================================
 #include <iostream>
 #include <memory>
-#include <boost/lockfree/ringbuffer.hpp>
-#include <boost/lockfree/fifo.hpp>
+#include <queue>
+
+#include <boost/utility.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/scoped_array.hpp>
+
+#include "spinlock.hpp"
+
 
 namespace orchid { namespace detail {
 
-template <typename Coroutine,typename T,std::size_t N>
-class chan_basic
+////////////////////chan类型模拟了GOLANG中chan的概念/////////////////
+
+
+template <typename Coroutine,typename T>
+class chan_basic:boost::noncopyable 
 {
 public:
-    const static std::size_t Capacity = N;
-    typedef chan_basic<Coroutine,T,N> self_type;
+    typedef chan_basic<Coroutine,T> self_type;
     typedef T value_type;
     typedef Coroutine coroutine_type;
-    typedef coroutine_type* coroutine_pointer;
+    typedef boost::shared_ptr<coroutine_type> coroutine_pointer;
 public:
-    chan_basic() {
+    chan_basic(std::size_t cap)
+        :cap_(cap),array_(new T[cap]),r_(0),
+        w_(0),is_closed_(false) {
     }
     ~chan_basic() {
+        close();
     }
 public:
-    void enqueue(const value_type& t,coroutine_pointer co) {
-        BOOST_ASSERT(co != NULL);
-        //尝试向数据队列中放数据，如果放不进去，说明已经满了，则yield
-        while(!datas_.enqueue(t)) {
-            if(w_queue_.enqueue(co))
-                co -> yield();
+
+    void close() {
+        locker_.lock();
+        is_closed_ = true;
+        while(!r_queue_.empty()){
+            r_queue_.front() -> resume();
+            r_queue_.pop();
         }
-        //成功的放入数据后，判断有没有读者阻塞，如果有的话尝试唤醒一个读者。
-        while(!r_queue_.empty()) {
-            coroutine_pointer tmp = NULL;
-            if(r_queue_.dequeue(&tmp)) {
-                tmp -> resume();
-                break;
-            }
+        while(!w_queue_.empty()){
+            w_queue_.front() -> resume();
+            w_queue_.pop();
         }
+        locker_.unlock();
     }
 
-    void dequeue(value_type& v,coroutine_pointer co) {
-        BOOST_ASSERT(co != NULL);
-        //尝试从数据队列中读数据，如果读不到，说明队列是空的，则yield
-        while(!datas_.dequeue(&v)) {
-            if(r_queue_.enqueue(co))
-                co -> yield();
+    template <typename U>
+    bool send(const U& t,coroutine_pointer co) {
+        locker_.lock();
+        if(is_closed_) {
+            locker_.unlock();
+            return false;
         }
-        //取出数据后，判断有没有写者阻塞，如果有则尝试唤醒一个写者。
-        while(!w_queue_.empty()) {
-            coroutine_pointer tmp = NULL;
-            if(w_queue_.dequeue(&tmp)) {
-                tmp -> resume();
-                break;
+        while(size_ >= cap_) {
+            w_queue_.push(co);
+            locker_.unlock();
+            co -> yield();
+            locker_.lock();
+            if(is_closed_) {
+                locker_.unlock();
+                return false;
             }
         }
+        array_[w_++] = t;
+        if(w_ == cap_) w_ = 0;
+        ++size_;
+        if(!r_queue_.empty()) {
+            coroutine_pointer co = r_queue_.front();
+            r_queue_.pop();
+            locker_.unlock();
+            co -> resume();
+        } else {
+            locker_.unlock();
+        }
+        return true;
     }
+
+    template <typename U>
+    bool recv(U& t,coroutine_pointer co) {
+        locker_.lock();
+        if(is_closed_) {
+            locker_.unlock();
+            return false;
+        }
+        while(size_ <= 0) {
+            r_queue_.push(co);
+            locker_.unlock();
+            co -> yield();
+            locker_.lock();
+            if(is_closed_) {
+                locker_.unlock();
+                return false;
+            }
+        }
+        t = array_[r_++];
+        if(r_ == cap_) r_ = 0;
+        --size_;
+        if(!w_queue_.empty()) {
+            coroutine_pointer co = w_queue_.front();
+            w_queue_.pop();
+            locker_.unlock();
+            co -> resume();
+        } else {
+            locker_.unlock();
+        }
+        return true;
+    }
+
+
 
 private:
-    boost::lockfree::fifo<coroutine_pointer> r_queue_;
-    boost::lockfree::fifo<coroutine_pointer> w_queue_;
-    boost::lockfree::ringbuffer<T,128> datas_;
-
+    spinlock locker_;
+    std::size_t cap_;
+    int size_;
+    boost::scoped_array<T> array_;
+    std::size_t r_;
+    std::size_t w_;
+    bool is_closed_;
+    std::queue<coroutine_pointer> r_queue_;
+    std::queue<coroutine_pointer> w_queue_;
+    
 };
+
+
 
 }
 }
