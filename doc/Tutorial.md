@@ -26,7 +26,7 @@ chan这个概念引用自golang的chan。每个协程是一个相互独立的执
 ##预备知识
 orchid的实现严重依赖于boost，依赖的主要子库包括：boost.context boost.asio boost.iostreams shared_ptr boost.bind 等等。如果用户对这些子库，尤其是boost.asio和boost.bind、shared_ptr具有一定的了解的话，会更加有利于了解和使用orchid。当然如果不了解也没有关系，本文会在后面的例子中对涉及的相关知识进行简单的介绍。
 
-##安装与编译
+##编译与安装
 暂无
 
 
