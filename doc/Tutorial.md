@@ -102,7 +102,7 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
 
 
 #第二个栗子:echo server
-第二个栗子，让我们从网络编程届的hello world：echo server开始。echo server首先必须要处理连接事件，在orchid中，我们创建一个协程专门的来处理连接事件，处理连接时间的协程的main函数如下：
+第二个栗子，让我们从网络编程届的hello world：echo server开始。echo server首先必须要处理连接事件，在orchid中，我们创建一个协程来专门处理连接事件，处理连接事件的协程的main函数如下：
 
     typedef boost::shared_ptr<orchid::socket> socket_ptr;
 
