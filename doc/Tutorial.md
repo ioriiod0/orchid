@@ -108,7 +108,7 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
     orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
     orchid::descriptor_ostream out(descriptor,co);
 
-上例中的这两句即是green化的过程。第一句从标准输出复制了一个文件描述符，然后构造了一个green化的descriptor对象，第二句从该对象构造了一个输出流。
+上例中的这两句即是green化的过程。第一句从标准输出复制了一个文件描述符，然后构造了一个green化的descriptor对象，第二句从该对象构造了一个输出流。当协程运行时，除非执行了green化的IO操作，否则不会让出CPU。
 
 目前orchid提供的green化的io对象包括：
 
