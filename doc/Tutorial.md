@@ -63,7 +63,7 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
         std::cout<<"done!"<<std::endl;
     }
 
-在上面这个例子中，我们首先声明一个调度器sche。然后调用sche的spawn方法创建了3个协程来输出hello world，最后调用调度器的run方法来执行整个程序。
+在上面这个例子中，我们首先声明一个调度器sche。然后调用sche的spawn方法创建了3个协程来输出hello world（每个协程输出2遍），最后调用调度器的run方法来执行整个程序。
 spawn方法有2个参数：
 
     template <typename F>
@@ -80,13 +80,13 @@ spawn方法有2个参数：
 
 boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::coroutine_handle)类型。其中_1是占位符，表示空出f1的第一个参数，而f1的第二个参数由"f1:hello world"填充。在后面的例子中将会大量出现这种用法，如果用户对boost.bind并不是很清楚，可以先阅读一下boost文档中的相关章节。
 
-第二个参数指定了协程栈空间的大小，orchid::coroutine提供了三种3个相关的函数：
+第二个参数指定了协程栈空间的大小，orchid::coroutine提供了3个相关的函数：
 
     std::size_t default_stack_size();//默认的栈大小，一般为16个内存页
     std::size_t minimum_stack_size();//栈的最小值，一般为2个内存页面
     std::size_t maximum_stack_size();//栈的最大值，一般与进程的栈的最大值（软限制）相同。
 
-用户可以根据自己的情况指定所需栈空间的大小。当协程使用的栈空间超过提供的大小时候，程序会异常结束， orchid并不会自动增加栈空间的大小，所以用户必须预估好足够的栈空间。
+用户可以根据自己的情况指定所需栈空间的大小。当协程使用的栈空间超过了提供的栈空间的大小的时候，程序会异常结束， orchid并不会自动增加栈空间的大小，所以用户必须预估出足够的栈空间。
 
 需要注意的是，在调用run方法之前，被创建的协助程序并不会被执行，只有调用了run方法之后，被创建的协程才会被调度执行。调用run方法的线程会被阻塞，直到所有的协程都执行完毕或调度器的stop方法被调用为止。
 
@@ -101,7 +101,7 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
     done!
 
 上述输出中展示了协程是如何“并发”的：f打印了第一句hello world的时候，线程并没有阻塞直到IO完成；此时调度器将f所在的协程切换下CPU，而将f1所在的协程切换至CPU并开始运行；当f1进行io操作的时候，同样的，将f1所在协程切换下来，而将f2所在协程切换上去；
-当f的io任务完成后，调度器将f所在协程又切回cpu，此时f回从上一次发生切换的点继续向下运行。f1，f2同理。
+当f的io任务完成后，调度器将f所在协程又切回cpu，此时f会从上一次发生切换的点继续向下运行。f1，f2同理。
 
 为了能够与协程相互配合，而不至于阻塞整个调度器/线程，需要将io对象“green化”，术语“green化”来自于python下著名的协程库greenlet，指改造IO对象以能和协程配合。
     
