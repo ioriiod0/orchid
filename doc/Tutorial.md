@@ -1,6 +1,7 @@
 #简介
 ##什么是协程？
 协程，顾名思义，协作式程序，其思想是，一系列互相依赖的协程间依次使用CPU，每次只有一个协程工作，而其他协程处于休眠状态。
+
 ####定义：
 * 协程是一种程序组件，是由子例程（过程、函数、例程、方法、子程序）的概念泛化而来的，子例程只有一个入口点且只返回一次，而协程允许多个入口点，可以在指定位置挂起和恢复执行。
 * 协程的本地数据在后续调用中始终保持。
@@ -9,48 +10,49 @@
 ####协程可以被认为是一种用户空间线程，与传统的抢占式线程相比，有2个主要的优点：
 * 与线程不同，协程是自己主动让出CPU，并交付他期望的下一个协程运行，而不是在任何时候都有可能被系统调度打断。因此协程的使用更加清晰易懂，并且多数情况下不需要锁机制。
 * 与线程相比，协程的切换发生由程序控制，发生在用户空间而非内核空间，因此切换的代价非常的小。
+
+####green化
+术语“green化”来自于python下著名的协程库greenlet，指改造IO对象以能和协程配合。某种意义上，协程与线程的关系类似与线程与进程的关系，多个协程会在同一个线程的上下文之中运行。因此，当出现IO操作的时候，为了能够与协程相互配合，只阻塞当前协程而非整个线程，需要将io对象“green化”。目前orchid提供的green化的io对象包括：
+
+* tcp socket（还不支持udp）
+* descriptor（目前仅支持非文件类型文件描述符，如管道和标准输入，文件类型的支持会在以后版本添加）
+* timer 
+* signal
+
+####chan：协程间通信
+chan这个概念引用自golang的chan。每个协程是一个相互独立的执行单元，为了能够方便协程之间的通信/同步，orchid提供了chan这种机制。chan本质上是一个阻塞消息队列，后面我们将看到，chan不仅可以用于同一个调度器中的协程之间的通信，而且可以用于不同调度器上的协程之间的通信。
+
+
 ##预备知识
 orchid的实现严重依赖于boost，依赖的主要子库包括：boost.context boost.asio boost.iostreams shared_ptr boost.bind 等等。如果用户对这些子库，尤其是boost.asio和boost.bind、shared_ptr具有一定的了解的话，会更加有利于了解和使用orchid。当然如果不了解也没有关系，本文会在后面的例子中对涉及的相关知识进行简单的介绍。
+
 ##安装与编译
 暂无
 
 
-
 #第一个栗子:一个复杂一些的hello world
-国际惯例，让我们从hello world开始。
+国际惯例，让我们从hello world开始。在这个例子中，我们将看到如何创建和执行一个协程。
     
+    //函数签名为 void(orchid::coroutine_handle) 的函数
     void f(orchid::coroutine_handle co) {
-        orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
-        orchid::descriptor_ostream out(descriptor,co);
-        out<<"f:hello world 1"<<std::endl;
-        out<<"f:hello world 2"<<std::endl;
+        std::cout<<"f:hello world 1"<<std::endl;
     }
 
+    //函数签名为 void(orchid::coroutine_handle,const char*) 的函数
     void f1(orchid::coroutine_handle co,const char* str) {
-        orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
-        orchid::descriptor_ostream out(descriptor,co);
-        out<<str<<std::endl;
-        out<<str<<std::endl;
+        std::cout<<str<<std::endl;
     }
 
+    //函数签名为 void(orchid::coroutine_handle) 的仿函数。
     struct printer {
         printer(const std::string& s):str(s) {
 
         }
         void operator()(orchid::coroutine_handle co) {
-            orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
-            orchid::descriptor_ostream out(descriptor,co);
-            out<<str<<std::endl;
-            out<<str<<std::endl;
+            std::cout<<str<<std::endl;
         }
-
         std::string str;
     };
-
-    void stop(orchid::coroutine_handle co) {
-        co -> get_scheduler().stop();
-    }
-
 
     int main(int argc,char* argv[]) {
         orchid::scheduler sche;
@@ -62,7 +64,15 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
         std::cout<<"done!"<<std::endl;
     }
 
-在上面这个例子中，我们首先声明一个调度器sche。然后调用sche的spawn方法创建了3个协程来输出hello world（每个协程输出2遍），最后调用调度器的run方法来执行整个程序。
+程序的输出：
+
+    f:hello world
+    f1:hello world
+    f2:hello world
+    done!
+
+在这个例子中，我们首先声明一个调度器sche,然后调用sche的spawn方法以3种方式创建了3个协程来输出hello world，最后调用调度器的run方法来执行整个程序。当程序执行时，3个协程依次被创建和执行。需要注意的是，在调用run方法之前，被创建的协助程序并不会被执行，只有调用了run方法之后，被创建的协程才会被调度执行。调用run方法的线程会被阻塞，直到所有的协程都执行完毕或调度器的stop方法被调用为止。（实际上，在这个例子中我们并没有对std::cout green化，因此每次调用std::cout的时候，整个调度器/线程都会被阻塞，在后面的介绍中我们将看到如何将IO对象green化）。
+
 spawn方法有2个参数：
 
     template <typename F>
@@ -87,39 +97,7 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
 
 用户可以根据自己的情况指定所需栈空间的大小。当协程使用的栈空间超过了提供的栈空间的大小的时候，程序会异常结束， orchid并不会自动增加栈空间的大小，所以用户必须预估出足够的栈空间。
 
-需要注意的是，在调用run方法之前，被创建的协助程序并不会被执行，只有调用了run方法之后，被创建的协程才会被调度执行。调用run方法的线程会被阻塞，直到所有的协程都执行完毕或调度器的stop方法被调用为止。
-
-下面来看看程序的输出：
-
-    f:hello world
-    f1:hello world
-    f2:hello world
-    f:hello world
-    f1:hello world
-    f2:hello world
-    done!
-
-上述输出中展示了协程是如何“并发”的：f打印了第一句hello world的时候，线程并没有阻塞直到IO完成；此时调度器将f所在的协程挂起，而将f1所在的协程切换至CPU并开始运行；当f1进行io操作的时候，同样的，将f1所在协程挂起，而将f2所在协程切换上去；
-当f的io任务完成后，调度器将f所在协程回复执行，此时f会从上一次挂起的位置继续向下运行。f1，f2同理。
-
-为了能够与协程相互配合，而不至于阻塞整个调度器/线程，需要将io对象“green化”，术语“green化”来自于python下著名的协程库greenlet，指改造IO对象以能和协程配合。
-    
-    orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
-    orchid::descriptor_ostream out(descriptor,co);
-
-上例中的这两句即是green化的过程。第一句从标准输出复制了一个文件描述符，然后构造了一个green化的descriptor对象，第二句从该对象构造了一个输出流。当协程运行时，除非执行了green化的IO操作，否则不会让出CPU。
-
-目前orchid提供的green化的io对象包括：
-
-* tcp socket（还不支持udp）
-* descriptor（目前仅支持非文件类型文件描述符，如管道和标准输入，文件类型的支持会在以后版本添加）
-* timer 
-* signal
-
-
-
-#第二个栗子:生产者-消费者
-在这个例子中，我们将主要介绍orchid提供的协程间的通信机制：chan。chan这个概念引用自golang的chan。
+这个hello world的例子过于简单，下面我们将通过创建一个echo server的客户端和服务器端来进一步了解orchid。
 
 
 
@@ -166,6 +144,7 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
         sche.spawn(handle_accept,orchid::coroutine::minimum_stack_size());//创建协程
         sche.run();
     }
+
 
 在上面这个echo server中，我们采用了一种 coroutine per connection 的服务模型，与传统的 thread per connection 模型一样的简洁清晰，但是整个程序实际上运行在同一线程当中。协程的切换开销远远小于线程，因此可以轻易的同时启动上千协程来同时服务上千连接，这是 thread per connection的模型很难做到的；与基于epoll的事件模型相比，逻辑简洁，代码清晰，而且由于协程切换的开销很小，所以IO性能与基于epoll的事件模型相比损耗非常小，基本持平。
 
@@ -219,10 +198,16 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
 
 在客户端的main函数中，我们创建100个协程，同时向服务器发送请求。
 
-#第三个栗子:chat server
+
+
+#第三个栗子:生产者-消费者
+在这个例子中，我们将主要介绍orchid提供的协程间的通信机制：chan。chan这个概念引用自golang的chan。
+
+
+#第四个栗子:chat server
 
 
 
-#第四个栗子:benchmark
+#第五个栗子:benchmark
 
 
