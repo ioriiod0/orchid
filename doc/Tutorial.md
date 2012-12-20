@@ -19,49 +19,49 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
 #第一个栗子:hello world
 国际惯例，让我们从hello world开始。
     
-void f(orchid::coroutine_handle co) {
-    orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
-    orchid::descriptor_ostream out(descriptor,co);
-    out<<"f:hello world 1"<<std::endl;
-    out<<"f:hello world 2"<<std::endl;
-}
-
-void f1(orchid::coroutine_handle co,const char* str) {
-    orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
-    orchid::descriptor_ostream out(descriptor,co);
-    out<<str<<std::endl;
-    out<<str<<std::endl;
-}
-
-struct printer {
-    printer(const std::string& s):str(s) {
-
+    void f(orchid::coroutine_handle co) {
+        orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
+        orchid::descriptor_ostream out(descriptor,co);
+        out<<"f:hello world 1"<<std::endl;
+        out<<"f:hello world 2"<<std::endl;
     }
-    void operator()(orchid::coroutine_handle co) {
+
+    void f1(orchid::coroutine_handle co,const char* str) {
         orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
         orchid::descriptor_ostream out(descriptor,co);
         out<<str<<std::endl;
         out<<str<<std::endl;
     }
 
-    std::string str;
-};
+    struct printer {
+        printer(const std::string& s):str(s) {
 
-void stop(orchid::coroutine_handle co) {
-    co -> get_scheduler().stop();
-}
+        }
+        void operator()(orchid::coroutine_handle co) {
+            orchid::descriptor descriptor(co->get_scheduler().get_io_service(),::dup(STDOUT_FILENO));
+            orchid::descriptor_ostream out(descriptor,co);
+            out<<str<<std::endl;
+            out<<str<<std::endl;
+        }
+
+        std::string str;
+    };
+
+    void stop(orchid::coroutine_handle co) {
+        co -> get_scheduler().stop();
+    }
 
 
-int main(int argc,char* argv[]) {
-    orchid::scheduler sche;
-    printer f2("f2:hello world");
-    sche.spawn(f,orchid::coroutine::minimum_stack_size());
-    sche.spawn(boost::bind(f1,_1,"f1:hello world"),orchid::coroutine::default_stack_size());
-    sche.spawn(f2);
-    sche.spawn(stop);
-    sche.run();
-    std::cout<<"done!"<<std::endl;
-}
+    int main(int argc,char* argv[]) {
+        orchid::scheduler sche;
+        printer f2("f2:hello world");
+        sche.spawn(f,orchid::coroutine::minimum_stack_size());
+        sche.spawn(boost::bind(f1,_1,"f1:hello world"),orchid::coroutine::default_stack_size());
+        sche.spawn(f2);
+        sche.spawn(stop);
+        sche.run();
+        std::cout<<"done!"<<std::endl;
+    }
 
 在上面这个例子中，我们首先声明一个调度器sche。然后调用sche的spawn方法分别以3种形式创建了3个协程序来输出hello world，最后创建了一个协程来关闭调度器，最后调用调度器的run方法来执行整个程序。
 spawn方法有2个参数：
