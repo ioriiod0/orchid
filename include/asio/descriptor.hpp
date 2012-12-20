@@ -8,6 +8,7 @@
 #ifndef __ORCHID_STREAM_DESCRIPTOR_H__
 #define __ORCHID_STREAM_DESCRIPTOR_H__
 
+#include <iostream>
 #include <boost/asio.hpp>
 #include <boost/utility.hpp>
 #include "io_service.hpp"
@@ -53,8 +54,7 @@ public:
 
 
     ~descriptor_basic() {
-        //if(descriptor_.is_open())
-        descriptor_.close();
+        
     }
     
 public:

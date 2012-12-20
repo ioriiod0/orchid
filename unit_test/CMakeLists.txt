@@ -8,9 +8,10 @@ ADD_EXECUTABLE(benchmark_asio_client benchmark_asio_client.cpp)
 ADD_EXECUTABLE(benchmark_asio_server benchmark_asio_server.cpp)
 ADD_EXECUTABLE(chat_client chat_client.cpp)
 ADD_EXECUTABLE(chat_server chat_server.cpp)
+ADD_EXECUTABLE(hello_world hello_world.cpp)
 
 
-
+TARGET_LINK_LIBRARIES(hello_world boost_context boost_iostreams boost_system boost_thread)
 TARGET_LINK_LIBRARIES(client boost_context boost_iostreams boost_system boost_thread)
 TARGET_LINK_LIBRARIES(server boost_context boost_iostreams boost_system boost_thread)
 TARGET_LINK_LIBRARIES(chan boost_context boost_iostreams boost_system boost_thread)

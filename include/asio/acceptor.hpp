@@ -53,7 +53,7 @@ public:
     }
 
     ~acceptor_basic() {
-        close();
+        
     }
 public:
     void bind_and_listen(const std::string& port,

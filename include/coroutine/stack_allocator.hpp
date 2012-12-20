@@ -16,6 +16,7 @@
 #include <iostream>
 #include <cmath>
 #include <boost/assert.hpp>
+#include <boost/context/all.hpp>
 // #include <cstddef>
 // #include <cstdlib>
 
@@ -42,7 +43,7 @@ public:
     }
 
     static std::size_t minimum_stack_size() {
-        return 2*page_size();  
+        return 2*page_size();
     }
 
     static std::size_t adjust_stack_size(std::size_t stacksize) {
@@ -50,11 +51,11 @@ public:
         std::size_t max = maximum_stack_size();
         BOOST_ASSERT(min<max);
         std::size_t pagesize = page_size();
-        if (stacksize <= pagesize) {
-            return min;
-        } else {
-            stacksize = ((stacksize + pagesize- 1) & ~(pagesize - 1)) +pagesize;
+        if (stacksize < min) {
+            stacksize = min;
         }
+        stacksize = stacksize + sizeof(boost::context::fcontext_t) + 15;
+        stacksize = ((stacksize + pagesize- 1) & ~(pagesize - 1)) +pagesize;
         return stacksize < max ? stacksize : max;
     }
 public:

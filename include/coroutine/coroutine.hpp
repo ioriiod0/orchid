@@ -70,7 +70,7 @@ public:
             p -> f_(p -> get_handle());
         } catch(stack_unwind_exception& e) {
             //do nothing.
-            //std::cout<<"ex111!!"<<std::endl;
+            //std::cout<<"exit!!"<<std::endl;
         }
         p -> is_dead_.store(true);
         boost::context::jump_fcontext(&p->ctx(),&p->sche_.ctx(),0); //NOTITY SCHEDULER that coroutine is dead
@@ -105,8 +105,10 @@ public:
             throw stack_unwind_exception();
         }
         boost::context::jump_fcontext(&ctx(),&sche_.ctx(),0);
-        if(is_stoped())
+        if(is_stoped()) {
+            //std::cout<<"throw here"<<std::endl;
             throw stack_unwind_exception();
+        }
     }
 
     //恢复当前协程的上下文，但是并不是立即切换，
