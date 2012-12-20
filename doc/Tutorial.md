@@ -145,10 +145,6 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
         sche.run();
     }
 
-
-在上面这个echo server中，我们采用了一种 coroutine per connection 的服务模型，与传统的 thread per connection 模型一样的简洁清晰，但是整个程序实际上运行在同一线程当中。协程的切换开销远远小于线程，因此可以轻易的同时启动上千协程来同时服务上千连接，这是 thread per connection的模型很难做到的；与基于epoll的事件模型相比，逻辑简洁，代码清晰，而且由于协程切换的开销很小，所以IO性能与基于epoll的事件模型相比损耗非常小，基本持平。
-
-
 然后我们来看客户端的代码,首先是处理socket io的协程：
 
     void handle_io(orchid::coroutine_handle co) {
@@ -199,9 +195,16 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
 
 在客户端的main函数中，我们创建100个协程，同时向服务器发送请求。
 
+在上面这个echo server的例子中，我们采用了一种 coroutine per connection 的编程模型，与传统的 thread per connection 模型一样的简洁清晰，但是整个程序实际上运行在同一线程当中。
+
+由于协程的切换开销和内存开销远远小于线程，因此我们可以轻易的同时启动上千协程来同时服务上千连接，这是 thread per connection的模型很难做到的；
+
+在性能方面，整个green化的IO系统实际上是使用boost.asio这种高性能的异步io库实现的,与原始的asio相比，orchid的性能损耗非常小，基本持平。
+
+因此通过orchid，我们可以在保持同步IO模型简洁性的同时，获得近似于异步IO模型的高性能。
 
 
-#第三个栗子:生产者-消费者
+#第三个栗子:生产者-消费者build
 在这个例子中，我们将主要介绍orchid提供的协程间的通信机制：chan。chan这个概念引用自golang的chan。
 
 
