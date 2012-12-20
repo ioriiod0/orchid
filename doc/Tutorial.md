@@ -124,9 +124,50 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
 
 
 #第二个栗子:echo server
-第二个栗子，让我们从网络编程届的hello world：echo server开始。
+第二个栗子，让我们从网络编程届的hello world：echo server开始。echo server首先必须要处理连接事件，在orchid中，我们创建一个协程专门的来处理连接事件，处理连接时间的协程的main函数如下：
 
+    typedef boost::shared_ptr<orchid::socket> socket_ptr;
 
+    //处理ACCEPTOR的协程
+    void handle_accept(orchid::coroutine_handle co) {
+        try {
+            orchid::acceptor acceptor(co -> get_scheduler().get_io_service());
+            acceptor.bind_and_listen("5678",true);
+            for(;;) {
+                socket_ptr sock(new orchid::socket(co -> get_scheduler().get_io_service()));
+                acceptor.accept(*sock,co);
+                co -> get_scheduler().spawn(boost::bind(handle_io,_1,sock),orchid::minimum_stack_size());
+            }
+        }
+        catch(boost::system::system_error& e) {
+            cerr<<e.code()<<" "<<e.what()<<endl;
+        }
+    }
+
+在上面的代码中，我们创建了一个green化的acceptor，并让它监听5678端口，然后在"阻塞"等待连接到来，当连接事件发生时，创建一个新的协程来服务这个socket。socket被包裹在只能指针终传递给该协程。处理套接字IO的协程的main函数如下：
+
+    //处理SOCKET IO的协程
+    void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
+        orchid::tcp_ostream out(*sock,co);
+        orchid::tcp_istream in(*sock,co);
+        for(std::string str;std::getline(in, str) && out;)
+        {
+            out<<str<<endl;
+        }
+      
+    }
+
+orchid可以使用户以流的形式来操作套接字，这个协程首先在传入的套接字上创建了一个输入流和一个输出流，分别代表了TCP的输入和输出。然后从输入流中读取一行，并输出到输出流当中。当socket上的TCP连接断开时，输入流和输出流的eof标志为会被置位。
+
+最后是main函数：
+
+    int main() {
+        orchid::scheduler sche;
+        sche.spawn(handle_accept,orchid::coroutine::minimum_stack_size());//创建协程
+        sche.run();
+    }
+
+在上面这个echo server中，我们采用了一种 coroutine per connection 的服务模型，与传统的 thread per connection 模型一样的简洁清晰，但是整个程序实际上运行在同一线程当中。协程的切换开销远远小于线程，因此可以轻易的同时启动上千协程来同时服务上千连接，这是 thread per connection的模型很难做到的；与基于epoll的事件模型相比，逻辑简洁，代码清晰，而且由于协程切换的开销很小，所以IO性能与基于epoll的事件模型相比，损耗非常小，基本持平。
 
 #第三个栗子:chat server
 

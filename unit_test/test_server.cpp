@@ -25,6 +25,8 @@ using std::endl;
 
 const static std::size_t STACK_SIZE = 16*1024;
 
+
+
 typedef boost::shared_ptr<orchid::socket> socket_ptr;
 
 void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
@@ -55,6 +57,6 @@ void handle_accept(orchid::coroutine_handle co) {
 
 int main() {
     orchid::scheduler sche;
-    sche.spawn(boost::bind(handle_accept,_1),STACK_SIZE);
+    sche.spawn(boost::bind(handle_accept,_1),orchid::coroutine::minimum_stack_size());
     sche.run();
 }
