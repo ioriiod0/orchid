@@ -167,7 +167,57 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
         sche.run();
     }
 
-在上面这个echo server中，我们采用了一种 coroutine per connection 的服务模型，与传统的 thread per connection 模型一样的简洁清晰，但是整个程序实际上运行在同一线程当中。协程的切换开销远远小于线程，因此可以轻易的同时启动上千协程来同时服务上千连接，这是 thread per connection的模型很难做到的；与基于epoll的事件模型相比，逻辑简洁，代码清晰，而且由于协程切换的开销很小，所以IO性能与基于epoll的事件模型相比，损耗非常小，基本持平。
+在上面这个echo server中，我们采用了一种 coroutine per connection 的服务模型，与传统的 thread per connection 模型一样的简洁清晰，但是整个程序实际上运行在同一线程当中。协程的切换开销远远小于线程，因此可以轻易的同时启动上千协程来同时服务上千连接，这是 thread per connection的模型很难做到的；与基于epoll的事件模型相比，逻辑简洁，代码清晰，而且由于协程切换的开销很小，所以IO性能与基于epoll的事件模型相比损耗非常小，基本持平。
+
+然后我们来看客户端的代码,首先是处理socket io的协程：
+
+    void handle_io(orchid::coroutine_handle co) {
+        orchid::descriptor stdout(co -> get_scheduler().get_io_service(),STDOUT_FILENO);
+        orchid::socket sock_(co -> get_scheduler().get_io_service());
+        try {
+            sock_.connect("127.0.0.1","5678",co);
+            orchid::tcp_istream in(sock_,co);
+            orchid::tcp_ostream out(sock_,co);
+            orchid::descriptor_ostream console(stdout,co);
+            out << "hello world !!!!" <<endl;
+            for (string str;std::getline(in,str);) {
+                console << str << endl;
+                out << "hello world !!!!" <<endl;
+            }
+        } catch (const boost::system::system_error& e) {
+            cerr<<e.code()<<" "<<e.what()<<endl;
+        }
+    }
+
+处理socket io的协程分别创建了一个green化的socket和一个green话的标准输出，然后连接到echo server上，不断执行 输出 -> 接收 -> 打印 这个流程。 
+
+为了能够从外部打断client的执行，我们还需要一个协程来处理中断信号：
+
+    void handle_sig(orchid::coroutine_handle co) {
+        orchid::signal sig(co -> get_scheduler().get_io_service());
+        try {
+            sig.add(SIGINT);
+            sig.add(SIGTERM);
+            sig.wait(co);
+            co->get_scheduler().stop();
+
+        } catch (const boost::system::system_error& e) {
+            cerr<<e.code()<<" "<<e.what()<<endl;
+        }
+    }
+
+在这个协程中，协程“阻塞”在SIGINT 和 SIGTERM信号上，当信号发生时，调用调度器的stop方法来中断程序的执行，并安全的回收资源。
+
+    int main() {
+        orchid::scheduler sche;
+        sche.spawn(handle_sig,orchid::coroutine::minimum_stack_size());
+        for (int i=0;i<100;++i) {
+            sche.spawn(handle_io);
+        }
+        sche.run();
+    }
+
+在客户端的main函数中，我们创建100个协程，同时向服务器发送请求。
 
 #第三个栗子:chat server
 

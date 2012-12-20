@@ -30,7 +30,6 @@ const static std::size_t STACK_SIZE = 16*1024;
 typedef boost::shared_ptr<orchid::socket> socket_ptr;
 
 void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
-    string str;
     orchid::tcp_ostream out(*sock,co);
     orchid::tcp_istream in(*sock,co);
     for(std::string str;std::getline(in, str) && out;)
@@ -47,7 +46,7 @@ void handle_accept(orchid::coroutine_handle co) {
         for(;;) {
             socket_ptr sock(new orchid::socket(co -> get_scheduler().get_io_service()));
             acceptor.accept(*sock,co);
-            co -> get_scheduler().spawn(boost::bind(handle_io,_1,sock),STACK_SIZE);
+            co -> get_scheduler().spawn(boost::bind(handle_io,_1,sock),orchid::coroutine::minimum_stack_size());
         }
     }
     catch(boost::system::system_error& e) {
@@ -57,6 +56,6 @@ void handle_accept(orchid::coroutine_handle co) {
 
 int main() {
     orchid::scheduler sche;
-    sche.spawn(boost::bind(handle_accept,_1),orchid::coroutine::minimum_stack_size());
+    sche.spawn(handle_accept,orchid::coroutine::minimum_stack_size());
     sche.run();
 }

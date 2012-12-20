@@ -8,6 +8,7 @@
 
 
 #include <string>
+#include <stdio.h>
 #include <iostream>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/copy.hpp>
@@ -20,24 +21,22 @@ using std::cout;
 using std::cerr;
 using std::endl;
 
-const static std::size_t STACK_SIZE = 16*1024;
-
 void handle_io(orchid::coroutine_handle co) {
-        orchid::socket sock_(co -> get_scheduler().get_io_service());
-        try {
-            sock_.connect("127.0.0.1","5678",co);
-            orchid::tcp_istream in(sock_,co);
-            orchid::tcp_ostream out(sock_,co);
-            in.exceptions(std::istream::failbit | std::istream::badbit);
-            string str;
-            for (;;) {
-                out << "hello world !!!!" <<endl;
-                std::getline(in, str);
-                cout << str << endl;
-            }
-        } catch (const boost::system::system_error& e) {
-            cerr<<e.code()<<" "<<e.what()<<endl;
+    orchid::descriptor stdout(co -> get_scheduler().get_io_service(),STDOUT_FILENO);
+    orchid::socket sock_(co -> get_scheduler().get_io_service());
+    try {
+        sock_.connect("127.0.0.1","5678",co);
+        orchid::tcp_istream in(sock_,co);
+        orchid::tcp_ostream out(sock_,co);
+        orchid::descriptor_ostream console(stdout,co);
+        out << "hello world !!!!" <<endl;
+        for (string str;std::getline(in,str);) {
+            console << str << endl;
+            out << "hello world !!!!" <<endl;
         }
+    } catch (const boost::system::system_error& e) {
+        cerr<<e.code()<<" "<<e.what()<<endl;
+    }
 }
 
 void handle_sig(orchid::coroutine_handle co) {
@@ -57,7 +56,6 @@ void handle_sig(orchid::coroutine_handle co) {
 
 int main() {
     orchid::scheduler sche;
-    cout<<orchid::coroutine::default_stack_size()<<endl;
     sche.spawn(handle_sig,orchid::coroutine::minimum_stack_size());
     for (int i=0;i<100;++i) {
         sche.spawn(handle_io);
