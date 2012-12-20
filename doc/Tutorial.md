@@ -58,7 +58,6 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
         sche.spawn(f,orchid::coroutine::minimum_stack_size());
         sche.spawn(boost::bind(f1,_1,"f1:hello world"),orchid::coroutine::default_stack_size());
         sche.spawn(f2);
-        sche.spawn(stop);
         sche.run();
         std::cout<<"done!"<<std::endl;
     }
@@ -100,8 +99,8 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
     f2:hello world
     done!
 
-上述输出中展示了协程是如何“并发”的：f打印了第一句hello world的时候，线程并没有阻塞直到IO完成；此时调度器将f所在的协程切换下CPU，而将f1所在的协程切换至CPU并开始运行；当f1进行io操作的时候，同样的，将f1所在协程切换下来，而将f2所在协程切换上去；
-当f的io任务完成后，调度器将f所在协程又切回cpu，此时f会从上一次发生切换的点继续向下运行。f1，f2同理。
+上述输出中展示了协程是如何“并发”的：f打印了第一句hello world的时候，线程并没有阻塞直到IO完成；此时调度器将f所在的协程挂起，而将f1所在的协程切换至CPU并开始运行；当f1进行io操作的时候，同样的，将f1所在协程挂起，而将f2所在协程切换上去；
+当f的io任务完成后，调度器将f所在协程回复执行，此时f会从上一次挂起的位置继续向下运行。f1，f2同理。
 
 为了能够与协程相互配合，而不至于阻塞整个调度器/线程，需要将io对象“green化”，术语“green化”来自于python下著名的协程库greenlet，指改造IO对象以能和协程配合。
     
@@ -118,6 +117,9 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
 * signal
 
 
+
+#第二个栗子:生产者-消费者
+在这个例子中，我们将主要介绍orchid提供的协程间的通信机制：chan。chan这个概念引用自golang的chan。
 
 
 
