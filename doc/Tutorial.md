@@ -122,7 +122,7 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
         }
     }
 
-在上面的代码中，我们创建了一个green化的acceptor，并让它监听5678端口，然后在"阻塞"等待连接到来，当连接事件发生时，创建一个新的协程来服务这个socket。socket被包裹在只能指针终传递给该协程。处理套接字IO的协程的main函数如下：
+在上面的代码中，我们创建了一个green化的acceptor，并让它监听5678端口，然后在"阻塞"等待连接到来，当连接事件发生时，创建一个新的协程来服务这个socket。socket被包裹在智能指针中以参数形式传递给该协程。处理套接字IO的协程的main函数如下：
 
     //处理SOCKET IO事件的协程
     void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
@@ -147,6 +147,7 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
 
 
 在上面这个echo server中，我们采用了一种 coroutine per connection 的服务模型，与传统的 thread per connection 模型一样的简洁清晰，但是整个程序实际上运行在同一线程当中。协程的切换开销远远小于线程，因此可以轻易的同时启动上千协程来同时服务上千连接，这是 thread per connection的模型很难做到的；与基于epoll的事件模型相比，逻辑简洁，代码清晰，而且由于协程切换的开销很小，所以IO性能与基于epoll的事件模型相比损耗非常小，基本持平。
+
 
 然后我们来看客户端的代码,首先是处理socket io的协程：
 
