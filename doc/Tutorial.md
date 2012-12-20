@@ -16,7 +16,7 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
 
 
 
-#第一个栗子:hello world
+#第一个栗子:一个复杂一些的hello world
 国际惯例，让我们从hello world开始。
     
     void f(orchid::coroutine_handle co) {
@@ -63,7 +63,7 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
         std::cout<<"done!"<<std::endl;
     }
 
-在上面这个例子中，我们首先声明一个调度器sche。然后调用sche的spawn方法分别以3种形式创建了3个协程序来输出hello world，最后创建了一个协程来关闭调度器，最后调用调度器的run方法来执行整个程序。
+在上面这个例子中，我们首先声明一个调度器sche。然后调用sche的spawn方法创建了3个协程来输出hello world，最后调用调度器的run方法来执行整个程序。
 spawn方法有2个参数：
 
     template <typename F>
