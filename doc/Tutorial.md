@@ -82,8 +82,8 @@ spawn方法有2个参数：
 
     void(orchid::coroutine_handle) 
 
-的函数或函数对象，如上面例子中的f 和 f2。即func接收一个orchid::coroutine_handle作为参数，返回类型void。其中，orchid::coroutine_handle是协程的句柄，代表了func本身所处的协程。
-往往要完成协程所执行的任务，仅仅有个orchid::coroutine_handle是不够的，比如函数f1，f1需要额外传入一个const char* 的参数，对于这种函数，我们可以通过boost.bind、std::bind(tr1或者C++11)、或者lambda表达式（c++11）将他们适配成要求的函数类型。如上例中的：
+的函数或函数对象，如上面例子中的f 和 f2。其中，orchid::coroutine_handle是协程的句柄，代表了func本身所处的协程。
+往往要完成协程所执行的任务，仅仅有orchid::coroutine_handle是不够的，比如函数f1，f1需要额外传入一个const char* 的参数，对于这种函数，我们可以通过boost.bind、std::bind(tr1或者C++11)、或者lambda表达式（c++11）将他们适配成要求的函数类型。如上例中的：
 
     sche.spawn(boost::bind(f1,_1,"f1:hello world"),orchid::coroutine::default_stack_size())
 
