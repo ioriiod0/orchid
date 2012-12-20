@@ -106,7 +106,7 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
 
     typedef boost::shared_ptr<orchid::socket> socket_ptr;
 
-    //处理ACCEPTOR的协程
+    //处理ACCEPT事件的协程
     void handle_accept(orchid::coroutine_handle co) {
         try {
             orchid::acceptor acceptor(co -> get_scheduler().get_io_service());
@@ -124,7 +124,7 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
 
 在上面的代码中，我们创建了一个green化的acceptor，并让它监听5678端口，然后在"阻塞"等待连接到来，当连接事件发生时，创建一个新的协程来服务这个socket。socket被包裹在只能指针终传递给该协程。处理套接字IO的协程的main函数如下：
 
-    //处理SOCKET IO的协程
+    //处理SOCKET IO事件的协程
     void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
         orchid::tcp_ostream out(*sock,co);
         orchid::tcp_istream in(*sock,co);
