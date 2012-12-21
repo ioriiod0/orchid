@@ -256,8 +256,8 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
 test_scheduler_group为生产者和消费者在不同的调度器中的情形。通过scheduler_group类我们可以方便的创建一组调度器。然后通过调用其run方法同时启动多个调度器；通过调用其stop方法，同时停止多个调度器。
 
 
-
 #第四个栗子:chat server
+这次我们来一个复杂一些的例子：chat server 和 chat client
 
 
 
