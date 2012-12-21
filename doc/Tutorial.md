@@ -60,12 +60,17 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
         std::string str;
     };
 
+    void stop(orchid::coroutine_handle co) {
+        co -> get_scheduler().stop();
+    }
+
     int main(int argc,char* argv[]) {
         orchid::scheduler sche;
         printer f2("f2:hello world");
         sche.spawn(f,orchid::coroutine::minimum_stack_size());
         sche.spawn(boost::bind(f1,_1,"f1:hello world"),orchid::coroutine::default_stack_size());
         sche.spawn(f2);
+        sche.spawn(stop);
         sche.run();
         std::cout<<"done!"<<std::endl;
     }
@@ -77,7 +82,7 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
     f2:hello world
     done!
 
-在这个例子中，我们首先声明一个调度器sche,然后调用sche的spawn方法以3种方式创建了3个协程来输出hello world，最后调用调度器的run方法来执行整个程序。当程序执行时，3个协程依次被创建和执行。需要注意的是，在调用run方法之前，被创建的协助程序并不会被执行，只有调用了run方法之后，被创建的协程才会被调度执行。调用run方法的线程会被阻塞，直到所有的协程都执行完毕或调度器的stop方法被调用为止。（实际上，在这个例子中我们并没有对std::cout进行green化，因此每次调用std::cout的时候，整个调度器/线程都会被阻塞，在后面的介绍中我们将看到如何将IO对象green化）。
+在这个例子中，我们首先声明一个调度器sche,然后调用sche的spawn方法以3种方式创建了3个协程来输出hello world，最后调用调度器的run方法来执行整个程序。当程序执行时，3个协程依次被创建和执行。需要注意的是，在调用run方法之前，被创建的协助程序并不会被执行，只有调用了run方法之后，被创建的协程才会被调度执行。调用run方法的线程会被阻塞，直到调度器的stop方法被调用为止。（实际上，在这个例子中我们并没有对std::cout进行green化，因此每次调用std::cout的时候，整个调度器/线程都会被阻塞，在后面的介绍中我们将看到如何将IO对象green化）。
 
 spawn方法有2个参数：
 

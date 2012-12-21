@@ -25,8 +25,6 @@ using std::endl;
 
 const static std::size_t STACK_SIZE = 64*1024;
 
-
-
 class chat_client {
 public:
     chat_client(const string& ip,const string& port)
@@ -53,19 +51,15 @@ public:
 
 private:
     void receive_msg(orchid::coroutine_handle co) {
-            string str;
-            orchid::descriptor_ostream out(stdout_,co);
-            orchid::tcp_istream in(sock_,co);
-            //in.exceptions(std::istream::badbit | std::istream::failbit);
-            std::getline(in, str);
-            while (in) {
-                out<<str<<endl;
-                std::getline(in, str);
-            }
+        string str;
+        orchid::descriptor_ostream out(stdout_,co);
+        orchid::tcp_istream in(sock_,co);
+        for (string str;std::getline(in, str);) {
+            out<<str<<endl;
+        }
     }
 
     void handle_console(orchid::coroutine_handle co) {
-        string str;
         orchid::descriptor_istream in(stdin_,co);
         orchid::tcp_ostream out(sock_,co);
         try {
@@ -76,22 +70,26 @@ private:
         }
 
         sche_.spawn(boost::bind(&chat_client::receive_msg,this,_1), STACK_SIZE);
-        std::getline(in,str);
-        while(in) {
+        for(string str;std::getline(in,str);) {
             if(str.empty()) continue;
-            if(str.size() >= 2 && str[0] == '/' && str[1] == 'q') {
+            // 退出 /q
+            if(str.size() >= 2 && str[0] == '/' && str[1] == 'q') { 
                 sock_.close();
                 user_.clear();
                 is_logined_ = false;
                 cerr<<"closed"<<endl;
                 stop();
-            } else if(str.size() >= 4 && str[0] == '/' && str[1] =='s') {
+            }
+            // 发送消息 /s message
+            else if(str.size() >= 4 && str[0] == '/' && str[1] =='s') {
                 if(!is_logined_) {
                     cerr<<"login first"<<endl;
                 } else {
-                    out<<user_<<":"<<str.substr(3)<<endl;
+                    out<<user_<<" : "<<str.substr(3)<<endl;
                 }
-            } else if(str.size() >= 4 && str[0] == '/' && str[1] == 'l') {
+            }
+            // 登陆 /l username 
+            else if(str.size() >= 4 && str[0] == '/' && str[1] == 'l') {
                 if (!is_logined_) {
                     user_ = str.substr(3);
                     is_logined_ = true;
@@ -101,7 +99,6 @@ private:
             } else {
                 print_err();
             }
-            std::getline(in,str);
         }
 
     }

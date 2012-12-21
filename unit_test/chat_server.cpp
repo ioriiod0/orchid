@@ -24,15 +24,10 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-
 const static std::size_t STACK_SIZE = 64*1024;
-
-
-
 
 template <typename Client>
 struct server {
-
     typedef server<Client> self_type;
     typedef boost::shared_ptr<Client> client_sp_type;
     typedef std::list<client_sp_type> client_list_type;
@@ -140,22 +135,15 @@ struct client:public boost::enable_shared_from_this<client> {
                 out<<str<<endl;
             }
         } catch (boost::system::system_error& e) {
-            cout<<e.code()<<" "<<e.what()<<endl;
+            cerr<<e.code()<<" "<<e.what()<<endl;
         }
-        cout<<"sender's done!"<<endl;
-
-
     }
 
     void receiver(orchid::coroutine_handle& co) {
         try {
-            string str;
             orchid::tcp_istream in(sock_,co);
-
-            std::getline(in,str);
-            while (in) {
+            for (string str;std::getline(in,str);) {
                 server_.msg_ch_.send(str,co);
-                std::getline(in,str);
             }
 
         } catch (boost::system::system_error& e) {
@@ -167,10 +155,8 @@ struct client:public boost::enable_shared_from_this<client> {
         ctrl_msg.cmd_ = server<client>::UNREGISTER;
         ctrl_msg.client_ = this -> shared_from_this();
         server_.msg_ch_.send(ctrl_msg, co);
-        cout<<"reveiver's done!"<<endl;
 
     }
-
 };
 
 int main(int argc,char* argv[]) {
