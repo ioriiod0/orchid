@@ -262,8 +262,116 @@ test_scheduler_group为生产者和消费者在不同的调度器中的情形。
 
 
 #第四个栗子:chat server
-这次我们来一个复杂一些的例子：chat server 和 chat client
+这次我们来一个复杂一些的例子：chat server 和 chat client。在这个例子中我们将看到：如何以类的形式组织代码，以及如何管理协程间共享对象的生命周期。
+先从chat clent开始。
 
+    const static std::size_t STACK_SIZE = 64*1024;
+    //客户端类
+    class chat_client {
+    public:
+        chat_client(const string& ip,const string& port)
+            :sche_(),
+            stdin_(sche_.get_io_service(),STDIN_FILENO),
+            stdout_(sche_.get_io_service(),STDOUT_FILENO),
+            sock_(sche_.get_io_service()),
+            is_logined_(false),ip_(ip),port_(port) {
+
+        }
+        ~chat_client() {
+
+        }
+    public:
+        //
+        void run() {
+            sche_.spawn(boost::bind(&chat_client::handle_console,this,_1),STACK_SIZE);
+            sche_.run();
+        }
+        //
+        void stop() {
+            sche_.stop();
+        }
+
+    private:
+        // 负责协程的
+        void receive_msg(orchid::coroutine_handle co) {
+            string str;
+            orchid::descriptor_ostream out(stdout_,co);
+            orchid::tcp_istream in(sock_,co);
+            for (string str;std::getline(in, str);) {
+                out<<str<<endl;
+            }
+        }
+
+        void handle_console(orchid::coroutine_handle co) {
+            orchid::descriptor_istream in(stdin_,co);
+            orchid::tcp_ostream out(sock_,co);
+            try {
+                sock_.connect(ip_,port_,co);
+            } catch (boost::system::system_error& e) {
+                cerr<<e.code()<<" "<<e.what()<<endl;
+                return;
+            }
+
+            sche_.spawn(boost::bind(&chat_client::receive_msg,this,_1), STACK_SIZE);
+            for(string str;std::getline(in,str);) {
+                if(str.empty()) continue;
+                // 退出 /q
+                if(str.size() >= 2 && str[0] == '/' && str[1] == 'q') { 
+                    sock_.close();
+                    user_.clear();
+                    is_logined_ = false;
+                    cerr<<"closed"<<endl;
+                    stop();
+                }
+                // 发送消息 /s message
+                else if(str.size() >= 4 && str[0] == '/' && str[1] =='s') {
+                    if(!is_logined_) {
+                        cerr<<"login first"<<endl;
+                    } else {
+                        out<<user_<<" : "<<str.substr(3)<<endl;
+                    }
+                }
+                // 登陆 /l username 
+                else if(str.size() >= 4 && str[0] == '/' && str[1] == 'l') {
+                    if (!is_logined_) {
+                        user_ = str.substr(3);
+                        is_logined_ = true;
+                    } else {
+                        cerr<<"err: already logined!"<<endl;
+                    }
+                } else {
+                    print_err();
+                }
+            }
+
+        }
+
+        void print_err() {
+               cerr<<"err: bad cmd!"<<endl
+                <<"usage:"<<endl
+                <<"login: /l 127.0.0.0.1 5678 name"<<endl
+                <<"exit: /q"<<endl
+                <<"send: /s xxxxxxxxxxxx"<<endl;
+        }
+
+    private:
+        orchid::scheduler sche_;
+        orchid::descriptor stdin_;
+        orchid::descriptor stdout_;
+        orchid::socket sock_;
+        string user_;
+        bool is_logined_;
+        string ip_;
+        string port_;
+
+    };
+
+    int main(int argc,char* argv[]) {
+        string ip = argv[1];
+        string port = argv[2];
+        chat_client client(ip,port);
+        client.run();
+    }
 
 
 #第五个栗子:benchmark
