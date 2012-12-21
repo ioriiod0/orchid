@@ -90,7 +90,7 @@ public:
             ctx_ = boost::context::make_fcontext(stack_pointer_,stack_size_,trampoline);
     }
 
-    virtual ~coroutine_basic() {
+    ~coroutine_basic() {
         alloc_.deallocate(stack_pointer_,stack_size_);
     }
 

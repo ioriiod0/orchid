@@ -1,8 +1,11 @@
 #简介
-##什么是协程？
-协程，顾名思义，协作式程序，其思想是，一系列互相依赖的协程间依次使用CPU，每次只有一个协程工作，而其他协程处于休眠状态。
 
-####定义：
+##什么是orchid?
+orchid是一个构建于强大的boost库基础上的C++库，类似于python下的gevent/eventlet，为用户提供基于协程的并发模型。
+
+####什么是协程：
+协程，顾名思义，协作式程序，其思想是，一系列互相依赖的协程间依次使用CPU，每次只有一个协程工作，而其他协程处于休眠状态。协程已经被证明是一种非常有用的程序组件，协程以及基于协程的并发模型在python、lua、ruby等高级脚本语言中被广泛采用，更是被新一代面向多核的编程语言如golang rust-lang等作为语言级的特性加以支持。
+
 * 协程是一种程序组件，是由子例程（过程、函数、例程、方法、子程序）的概念泛化而来的，子例程只有一个入口点且只返回一次，而协程允许多个入口点，可以在指定位置挂起和恢复执行。
 * 协程的本地数据在后续调用中始终保持。
 * 协程在控制离开时暂停执行，当控制再次进入时只能从离开的位置继续执行。
@@ -21,6 +24,9 @@
 
 ####chan：协程间通信
 chan这个概念引用自golang的chan。每个协程是一个相互独立的执行单元，为了能够方便协程之间的通信/同步，orchid提供了chan这种机制。chan本质上是一个阻塞消息队列，后面我们将看到，chan不仅可以用于同一个调度器上的协程之间的通信，而且可以用于不同调度器上的协程之间的通信。
+
+####多核
+建议使用的scheduler per cpu的的模型来支持多核的机器，即为每个CPU核心分配一个调度器，有多少核心就创建多少个调度器。不同调度器的协程之间也可以通过chan来通信。协程应该被创建在那个调度器里由用户自己决定。
 
 
 ##预备知识
@@ -71,7 +77,7 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
     f2:hello world
     done!
 
-在这个例子中，我们首先声明一个调度器sche,然后调用sche的spawn方法以3种方式创建了3个协程来输出hello world，最后调用调度器的run方法来执行整个程序。当程序执行时，3个协程依次被创建和执行。需要注意的是，在调用run方法之前，被创建的协助程序并不会被执行，只有调用了run方法之后，被创建的协程才会被调度执行。调用run方法的线程会被阻塞，直到所有的协程都执行完毕或调度器的stop方法被调用为止。（实际上，在这个例子中我们并没有对std::cout green化，因此每次调用std::cout的时候，整个调度器/线程都会被阻塞，在后面的介绍中我们将看到如何将IO对象green化）。
+在这个例子中，我们首先声明一个调度器sche,然后调用sche的spawn方法以3种方式创建了3个协程来输出hello world，最后调用调度器的run方法来执行整个程序。当程序执行时，3个协程依次被创建和执行。需要注意的是，在调用run方法之前，被创建的协助程序并不会被执行，只有调用了run方法之后，被创建的协程才会被调度执行。调用run方法的线程会被阻塞，直到所有的协程都执行完毕或调度器的stop方法被调用为止。（实际上，在这个例子中我们并没有对std::cout进行green化，因此每次调用std::cout的时候，整个调度器/线程都会被阻塞，在后面的介绍中我们将看到如何将IO对象green化）。
 
 spawn方法有2个参数：
 
@@ -205,7 +211,50 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
 
 
 #第三个栗子:生产者-消费者
-在这个例子中，我们将主要介绍orchid提供的协程间的通信机制：chan。chan这个概念引用自golang的chan。
+在这个例子中，我们将主要介绍orchid提供的协程间的通信机制：chan。chan这个概念引用自golang的chan。chan表现为一个阻塞消息队列，即：当队列为空时，消费者会阻塞；当队列满时，生产者回阻塞；这里的生产者和消费者均为协程。orchid提供的chan只支持 单生产者-单消费者 和 多生产者-单消费者这两种模型（在其他模型，如多生产者-多消费者中，chan会引起某些消费者的饿死现象）。
+    
+    //生产者
+    void sender(orchid::coroutine_handle co,int id,orchid::chan<int>& ch) {
+        for (;;) {
+            ch.send(id,co);
+        }
+    }
+    //消费者
+    void receiver(orchid::coroutine_handle co,orchid::chan<int>& ch) {
+        orchid::descriptor stdout(co -> get_scheduler().get_io_service(),STDOUT_FILENO);
+        orchid::descriptor_ostream console(stdout,co);
+        int id;
+        for (;;) {
+            ch.recv(id,co);
+            console<<"receiver receive: "<<id<<std::endl;
+        }
+    }
+
+    //生产者和消费者运行在同一个调度器中。
+    void test_one_scheduler() {
+        orchid::scheduler sche;
+        orchid::chan<int> ch(10);
+        for (int i=0;i<100;++i) {
+            sche.spawn(boost::bind(sender,_1,i,boost::ref(ch)));
+        }
+        sche.spawn(boost::bind(receiver,_1,boost::ref(ch)));
+        sche.run();
+    }
+
+    //生产者和消费者运行再不同的调度器中。
+    void test_scheduler_group() {
+        orchid::scheduler_group group(2);
+        orchid::chan<int> ch(10);
+        for (int i=0;i<100;++i) {
+            group[i%2].spawn(boost::bind(sender,_1,i,boost::ref(ch)));
+        }
+        group[0].spawn(boost::bind(receiver,_1,boost::ref(ch)));
+        group.run();
+    }
+
+在上面的例子中，代码orchid::chan<int> ch(10) 表示创建一个大小为10，装载类型为int的chan；
+test_scheduler_group为生产者和消费者在不同的调度器中的情形。通过scheduler_group类我们可以方便的创建一组调度器。然后通过调用其run方法同时启动多个调度器；通过调用其stop方法，同时停止多个调度器。
+
 
 
 #第四个栗子:chat server

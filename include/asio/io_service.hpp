@@ -21,7 +21,7 @@ public:
     typedef boost::asio::io_service impl_type;
 
 public:
-    io_service():impl_()/*,work_(impl_)*/ {
+    io_service():impl_(),work_(impl_) {
 
     }
     ~io_service() {
@@ -51,7 +51,7 @@ public:
 
 private:
     impl_type impl_;
-    //boost::asio::io_service::work work_; //keep running 
+    boost::asio::io_service::work work_; //keep running 
     
 };
 

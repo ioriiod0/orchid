@@ -6,10 +6,14 @@
 // Description  : 
 // ====================================================================================
 
+#include <unistd.h>
 #include <string>
 #include <stdio.h>
+#include <iostream>
 #include <boost/lexical_cast.hpp>
+
 #include "../include/all.hpp"
+
 
 using std::string;
 using std::cout;
@@ -20,52 +24,49 @@ using std::endl;
 const static std::size_t STACK_SIZE = 64*1024;
 
 
-void sender(orchid::coroutine_handle& co,int id,orchid::chan<int>& ch) {
-    printf("sender%d start!!\r\n",id);
-    try {
-        int i = 0;
-        for (;;) {
-            printf("sender%d send: %d\r\n",id,i);
-            ch.send(i++,co);
-        }
-    } catch (...) {
-        cout<<"error happened!!\r\n";
-    }
 
-}
-
-void receiver(orchid::coroutine_handle& co,int id,orchid::chan<int>& ch) {
-    try {
-        int i;
-        for (;;) {
-            ch.recv(i,co);
-            printf("receiver%d receive: %d\r\n",id,i);
-        }
-    } catch (...) {
-        cout<<"error happened!!\r\n";
-
+void sender(orchid::coroutine_handle co,int id,orchid::chan<int>& ch) {
+    for (;;) {
+        ch.send(id,co);
     }
 }
 
-
-
-int main(int argc,const char* argv[]) {
-    int sender_size = boost::lexical_cast<int>(argv[1]);
-    int receiver_size = boost::lexical_cast<int>(argv[2]);
-    int chan_size = boost::lexical_cast<int>(argv[3]);
-
-    orchid::scheduler_group group(4);
-    orchid::chan<int> ch(chan_size);
-    int m=0;
-
-    for (int i=0;i<sender_size;++i) {
-        group[m++].spawn(boost::bind(sender,_1,i,boost::ref(ch)),STACK_SIZE);
-        if(m==group.size()) m=0;
+void receiver(orchid::coroutine_handle co,orchid::chan<int>& ch) {
+    orchid::descriptor stdout(co -> get_scheduler().get_io_service(),STDOUT_FILENO);
+    orchid::descriptor_ostream console(stdout,co);
+    int id;
+    for (;;) {
+        ch.recv(id,co);
+        console<<"receiver receive: "<<id<<std::endl;
     }
-    for (int i=0;i<receiver_size;++i) {
-        group[m++].spawn(boost::bind(receiver,_1,i,boost::ref(ch)),STACK_SIZE);
-        if(m==group.size()) m=0;
-    }
+}
 
+void test_one_scheduler() {
+    orchid::scheduler sche;
+    orchid::chan<int> ch(10);
+    for (int i=0;i<100;++i) {
+        sche.spawn(boost::bind(sender,_1,i,boost::ref(ch)));
+    }
+    sche.spawn(boost::bind(receiver,_1,boost::ref(ch)));
+    sche.run();
+}
+
+void test_scheduler_group() {
+    orchid::scheduler_group group(2);
+    orchid::chan<int> ch(10);
+    for (int i=0;i<100;++i) {
+        group[i%2].spawn(boost::bind(sender,_1,i,boost::ref(ch)));
+    }
+    group[0].spawn(boost::bind(receiver,_1,boost::ref(ch)));
     group.run();
 }
+
+int main(int argc,const char* argv[]) {
+    test_one_scheduler();
+    test_scheduler_group();
+
+}
+
+ 
+
+

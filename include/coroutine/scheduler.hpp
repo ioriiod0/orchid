@@ -18,6 +18,7 @@
 #include <boost/utility.hpp>
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
+#include <boost/atomic.hpp>
 
 #include "stack_allocator.hpp"
 
@@ -77,10 +78,6 @@ public:
         io_service_.post(f);
     }
 
-    std::size_t size() const {
-        return all_.size();
-    }
-
     io_service_type& get_io_service() {
         return io_service_;
     }
@@ -88,6 +85,7 @@ public:
     const io_service_type& get_io_service() const {
         return io_service_;
     }
+    /////////////////////////////////////////////////
 
     context_type& ctx() {
         return ctx_;
