@@ -4,23 +4,20 @@
 orchid是一个构建于强大的boost库基础上的C++库，类似于python下的gevent/eventlet，为用户提供基于协程的并发模型。
 
 ####什么是协程：
-协程，顾名思义，协作式程序，其思想是，一系列互相依赖的协程间依次使用CPU，每次只有一个协程工作，而其他协程处于休眠状态。协程已经被证明是一种非常有用的程序组件，协程以及基于协程的并发模型在python、lua、ruby等高级脚本语言中被广泛采用，更是被新一代面向多核的编程语言如golang rust-lang等作为语言级的特性加以支持。
-
-* 协程是一种程序组件，是由子例程（过程、函数、例程、方法、子程序）的概念泛化而来的，子例程只有一个入口点且只返回一次，而协程允许多个入口点，可以在指定位置挂起和恢复执行。
-* 协程的本地数据在后续调用中始终保持。
-* 协程在控制离开时暂停执行，当控制再次进入时只能从离开的位置继续执行。
+协程，顾名思义，协作式程序，其思想是，一系列互相依赖的协程间依次使用CPU，每次只有一个协程工作，而其他协程处于休眠状态。协程在控制离开时暂停执行，当控制再次进入时只能从离开的位置继续执行。
+协程已经被证明是一种非常有用的程序组件，协程以及基于协程的并发模型在python、lua、ruby等高级脚本语言中被广泛采用，更是被新一代面向多核的编程语言如golang rust-lang等作为语言级的特性加以支持。
 
 ####协程可以被认为是一种用户空间线程，与传统的抢占式线程相比，有2个主要的优点：
 * 与线程不同，协程是自己主动让出CPU，并交付他期望的下一个协程运行，而不是在任何时候都有可能被系统调度打断。因此协程的使用更加清晰易懂，并且多数情况下不需要锁机制。
-* 与线程相比，协程的切换发生由程序控制，发生在用户空间而非内核空间，因此切换的代价非常的小。
+* 与线程相比，协程的切换由程序控制，发生在用户空间而非内核空间，因此切换的代价非常的小。
 
 ####green化
 术语“green化”来自于python下著名的协程库greenlet，指改造IO对象以能和协程配合。某种意义上，协程与线程的关系类似与线程与进程的关系，多个协程会在同一个线程的上下文之中运行。因此，当出现IO操作的时候，为了能够与协程相互配合，只阻塞当前协程而非整个线程，需要将io对象“green化”。目前orchid提供的green化的io对象包括：
 
 * tcp socket（还不支持udp）
-* descriptor（目前仅支持非文件类型文件描述符，如管道和标准输入，文件类型的支持会在以后版本添加）
-* timer 
-* signal
+* descriptor（目前仅支持非文件类型文件描述符，如管道和标准输入/输出，文件类型的支持会在以后版本添加）
+* timer (定时器)
+* signal (信号)
 
 ####chan：协程间通信
 chan这个概念引用自golang的chan。每个协程是一个相互独立的执行单元，为了能够方便协程之间的通信/同步，orchid提供了chan这种机制。chan本质上是一个阻塞消息队列，后面我们将看到，chan不仅可以用于同一个调度器上的协程之间的通信，而且可以用于不同调度器上的协程之间的通信。
@@ -49,27 +46,14 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
         std::cout<<str<<std::endl;
     }
 
-    //函数签名为 void(orchid::coroutine_handle) 的仿函数。
-    struct printer {
-        printer(const std::string& s):str(s) {
-
-        }
-        void operator()(orchid::coroutine_handle co) {
-            std::cout<<str<<std::endl;
-        }
-        std::string str;
-    };
-
     void stop(orchid::coroutine_handle co) {
         co -> get_scheduler().stop();
     }
 
     int main(int argc,char* argv[]) {
         orchid::scheduler sche;
-        printer f2("f2:hello world");
         sche.spawn(f,orchid::coroutine::minimum_stack_size());
         sche.spawn(boost::bind(f1,_1,"f1:hello world"),orchid::coroutine::default_stack_size());
-        sche.spawn(f2);
         sche.spawn(stop);
         sche.run();
         std::cout<<"done!"<<std::endl;
@@ -79,10 +63,11 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
 
     f:hello world
     f1:hello world
-    f2:hello world
     done!
 
-在这个例子中，我们首先声明一个调度器sche,然后调用sche的spawn方法以3种方式创建了3个协程来输出hello world，最后调用调度器的run方法来执行整个程序。当程序执行时，3个协程依次被创建和执行。需要注意的是，在调用run方法之前，被创建的协助程序并不会被执行，只有调用了run方法之后，被创建的协程才会被调度执行。调用run方法的线程会被阻塞，直到调度器的stop方法被调用为止。（实际上，在这个例子中我们并没有对std::cout进行green化，因此每次调用std::cout的时候，整个调度器/线程都会被阻塞，在后面的介绍中我们将看到如何将IO对象green化）。
+在这个例子中，我们首先声明一个调度器sche,然后调用sche的spawn方法以2种方式创建了2个协程来输出hello world，最后调用调度器的run方法来执行整个程序。当程序执行时，2个协程依次被执行。需要注意的是，在调用run方法之前，被创建的协助程序并不会被执行，只有调用了run方法之后，被创建的协程才会被调度执行。
+调用run方法的线程会被阻塞，直到调度器的stop方法被调用为止。
+（实际上，在这个例子中我们并没有对std::cout进行green化，因此每次调用std::cout的时候，整个调度器/线程都会被阻塞，在后面的介绍中我们将看到如何将IO对象green化）。
 
 spawn方法有2个参数：
 
@@ -93,7 +78,7 @@ spawn方法有2个参数：
 
     void(orchid::coroutine_handle) 
 
-的函数或函数对象，如上面例子中的f 和 f2。其中，orchid::coroutine_handle是协程的句柄，代表了func本身所处的协程。
+的函数或函数对象，如上面例子中的f。其中，orchid::coroutine_handle是协程的句柄，代表了func本身所处的协程。
 往往要完成协程所执行的任务，仅仅有orchid::coroutine_handle是不够的，比如函数f1，f1需要额外传入一个const char* 的参数，对于这种函数，我们可以通过boost.bind、std::bind(tr1或者C++11)、或者lambda表达式（c++11）将他们适配成要求的函数类型。如上例中的：
 
     sche.spawn(boost::bind(f1,_1,"f1:hello world"),orchid::coroutine::default_stack_size())
@@ -111,9 +96,8 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
 这个hello world的例子过于简单，下面我们将通过创建一个echo server的客户端和服务器端来进一步了解orchid。
 
 
-
 #第二个栗子:echo server
-第二个栗子，让我们从网络编程届的hello world：echo server开始。echo server首先必须要处理连接事件，在orchid中，我们创建一个协程来专门处理连接事件，处理连接事件的协程的main函数如下：
+第二个栗子，让我们从网络编程届的hello world：echo server开始。echo server首先必须要处理连接事件，在orchid中，我们创建一个协程来专门处理连接事件：
 
     typedef boost::shared_ptr<orchid::socket> socket_ptr;
 
@@ -133,7 +117,7 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
         }
     }
 
-在上面的代码中，我们创建了一个green化的acceptor，并让它监听5678端口，然后在"阻塞"等待连接到来，当连接事件发生时，创建一个新的协程来服务新得到的socket。green化的socket被包裹在智能指针中以参数形式传递给处理socket io事件的协程。处理套接字IO的协程的main函数如下：
+在上面的代码中，我们创建了一个green化的acceptor，并让它监听5678端口，然后在"阻塞"等待连接到来，当连接事件发生时，创建一个新的协程来服务新得到的socket。green化的socket被包裹在智能指针中以参数形式传递给处理socket io事件的协程。处理套接字IO的协程如下：
 
     //处理SOCKET IO事件的协程
     void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
@@ -146,7 +130,7 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
       
     }
 
-orchid可以使用户以流的形式来操作套接字;协程首先在传入的套接字上创建了一个输入流和一个输出流，分别代表了TCP的输入和输出。然后从输入流中读取一行，并输出到输出流当中。当socket上的TCP连接断开时，输入流和输出流的eof标志为会被置位。
+orchid可以使用户以流的形式来操作套接字;协程首先在传入的套接字上创建了一个输入流和一个输出流，分别代表了TCP的输入和输出。然后不断地从输入流中读取一行，并输出到输出流当中。当socket上的TCP连接断开时，输入流和输出流的eof标志为会被置位，因此循环结束，协程退出。
 
 最后是main函数：
 
@@ -156,7 +140,9 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
         sche.run();
     }
 
-然后我们来看客户端的代码,首先是处理socket io的协程：
+然后我们来看客户端的代码，在客户端中，我们创建100个并发的TCP连接不断的向echo server发送hello world。
+
+首先是处理socket io的协程：
 
     void handle_io(orchid::coroutine_handle co) {
         orchid::descriptor stdout(co -> get_scheduler().get_io_service(),STDOUT_FILENO);
@@ -178,7 +164,7 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
 
 处理socket io的协程分别创建了一个green化的socket和一个green话的标准输出，然后连接到echo server上，不断执行 输出 -> 接收 -> 打印 这个流程。 
 
-为了能够从外部打断client的执行，我们还需要一个协程来处理中断信号：
+为了能够从外部打断client的执行，我们还需要一个协程来处理中断信号，这样我们就可以用ctrl+c来中断程序的执行：
 
     void handle_sig(orchid::coroutine_handle co) {
         orchid::signal sig(co -> get_scheduler().get_io_service());
@@ -204,27 +190,25 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
         sche.run();
     }
 
-在客户端的main函数中，我们创建100个协程，同时向服务器发送请求。
+在客户端的main函数中，我们创建100个协程，同时向服务器发送hello world。
 
 在上面这个echo server的例子中，我们采用了一种 coroutine per connection 的编程模型，与传统的 thread per connection 模型一样的简洁清晰，但是整个程序实际上运行在同一线程当中。
-
 由于协程的切换和内存开销远远小于线程，因此我们可以轻易的同时启动上千协程来同时服务上千连接，这是 thread per connection的模型很难做到的；
-
 在性能方面，整个green化的IO系统实际上是使用boost.asio这种高性能的异步io库实现的,与原始的asio相比，orchid的性能损耗非常小，基本持平。
-
 因此通过orchid，我们可以在保持同步IO模型简洁性的同时，获得近似于异步IO模型的高性能。
 
 
 #第三个栗子:生产者-消费者
-在这个例子中，我们将主要介绍orchid提供的协程间的通信机制：chan。chan这个概念引用自golang的chan。chan表现为一个阻塞消息队列，即：当队列为空时，消费者会阻塞；当队列满时，生产者回阻塞；这里的生产者和消费者均为协程。orchid提供的chan只支持 单生产者-单消费者 和 多生产者-单消费者这两种模型（在其他模型，如多生产者-多消费者中，chan会引起某些消费者的饿死现象）。
+在这个例子中，我们将主要介绍orchid提供的协程间的通信机制：chan。chan这个概念引用自golang的chan。chan表现为一个阻塞消息队列，即：当队列为空时，消费者会阻塞，当队列不在为空时，阻塞的消费者会被唤醒；当队列满时，生产者会阻塞，当队列不再满时，阻塞的生产者会被唤醒（这里的生产者和消费者均为协程）。
+orchid提供的chan只支持 单生产者-单消费者 和 多生产者-单消费者这两种模型（在其他模型，如多生产者-多消费者中，会出现某些消费者饿死的现象）。
     
-    //生产者
+    //生产者，不断发送自己的ID给消费者
     void sender(orchid::coroutine_handle co,int id,orchid::chan<int>& ch) {
         for (;;) {
             ch.send(id,co);
         }
     }
-    //消费者
+    //消费者，不断接收生产者发送的ID并打印ID.
     void receiver(orchid::coroutine_handle co,orchid::chan<int>& ch) {
         orchid::descriptor stdout(co -> get_scheduler().get_io_service(),STDOUT_FILENO);
         orchid::descriptor_ostream console(stdout,co);
@@ -257,15 +241,16 @@ orchid可以使用户以流的形式来操作套接字;协程首先在传入的�
         group.run();
     }
 
-在上面的例子中，代码orchid::chan<int> ch(10) 表示创建一个大小为10，装载类型为int的chan；
-test_scheduler_group为生产者和消费者在不同的调度器中的情形。通过scheduler_group类我们可以方便的创建一组调度器。然后通过调用其run方法同时启动多个调度器；通过调用其stop方法，同时停止多个调度器。
+在上面的例子中，代码orchid::chan<int> ch(10) 表示创建一个大小为10，装载类型为int的chan。
+同时在test_scheduler_group中，我们也可以看到scheduler_group的用法：通过scheduler_group类我们可以方便的创建一组调度器，其中每个调度器运行在同一个单独的线程中；通过调用其run方法同时启动多个调度器，通过调用其stop方法，同时停止多个调度器。
 
 
 #第四个栗子:chat server
 这次我们来一个复杂一些的例子：chat server 和 chat client。在这个例子中我们将看到：如何以类的形式组织代码，以及如何管理协程间共享对象的生命周期。
-先从chat clent开始。
+先从chat clent开始，在client中我们将创建两个协程，一个不断从标准输入读取输入，然后发送到chat server；另一个则不断从chat server接受消息并发送到标准输出上。
 
     const static std::size_t STACK_SIZE = 64*1024;
+
     //客户端类
     class chat_client {
     public:
@@ -281,18 +266,18 @@ test_scheduler_group为生产者和消费者在不同的调度器中的情形。
 
         }
     public:
-        //
+        //创建协程并启动调度器
         void run() {
             sche_.spawn(boost::bind(&chat_client::handle_console,this,_1),STACK_SIZE);
             sche_.run();
         }
-        //
+        //停止调度器
         void stop() {
             sche_.stop();
         }
 
     private:
-        // 负责协程的
+        // 不断从chat server接收消息并打印到标准输出上。
         void receive_msg(orchid::coroutine_handle co) {
             string str;
             orchid::descriptor_ostream out(stdout_,co);
@@ -302,20 +287,26 @@ test_scheduler_group为生产者和消费者在不同的调度器中的情形。
             }
         }
 
+        //不断从标准输入接收用户输入，并处理用户输入，发送消息chat server。
+        //登陆用 /l username
+        //发送消息用 /s xxxxxxx
+        //退出用 /q
         void handle_console(orchid::coroutine_handle co) {
             orchid::descriptor_istream in(stdin_,co);
             orchid::tcp_ostream out(sock_,co);
+            //首先连接chat server
             try {
                 sock_.connect(ip_,port_,co);
             } catch (boost::system::system_error& e) {
                 cerr<<e.code()<<" "<<e.what()<<endl;
                 return;
             }
-
+            //连接成功则启动接受消息的协程。
             sche_.spawn(boost::bind(&chat_client::receive_msg,this,_1), STACK_SIZE);
+            //不断读取标准输入并进行处理。
             for(string str;std::getline(in,str);) {
                 if(str.empty()) continue;
-                // 退出 /q
+                // 退出 “/q”
                 if(str.size() >= 2 && str[0] == '/' && str[1] == 'q') { 
                     sock_.close();
                     user_.clear();
@@ -331,7 +322,7 @@ test_scheduler_group为生产者和消费者在不同的调度器中的情形。
                         out<<user_<<" : "<<str.substr(3)<<endl;
                     }
                 }
-                // 登陆 /l username 
+                // 登陆 “/l username”
                 else if(str.size() >= 4 && str[0] == '/' && str[1] == 'l') {
                     if (!is_logined_) {
                         user_ = str.substr(3);
@@ -349,7 +340,7 @@ test_scheduler_group为生产者和消费者在不同的调度器中的情形。
         void print_err() {
                cerr<<"err: bad cmd!"<<endl
                 <<"usage:"<<endl
-                <<"login: /l 127.0.0.0.1 5678 name"<<endl
+                <<"login: /l username"<<endl
                 <<"exit: /q"<<endl
                 <<"send: /s xxxxxxxxxxxx"<<endl;
         }
@@ -372,6 +363,144 @@ test_scheduler_group为生产者和消费者在不同的调度器中的情形。
         chat_client client(ip,port);
         client.run();
     }
+
+然后是chat server的是实现：在chat client中
+
+    const static std::size_t STACK_SIZE = 64*1024;
+
+    template <typename Client>
+    struct server {
+        typedef server<Client> self_type;
+        typedef boost::shared_ptr<Client> client_sp_type;
+        typedef std::list<client_sp_type> client_list_type;
+        enum {REGISTER,UNREGISTER};
+        struct ctrl_t {
+            int cmd_;
+            client_sp_type client_;
+        };
+        typedef boost::variant<string,ctrl_t> msg_type;
+
+        ///////////////////////
+        orchid::scheduler_group schedulers_;
+        orchid::acceptor acceptor_;
+        std::string port_;
+        orchid::chan<msg_type> msg_ch_;
+        client_list_type clients_;
+        ///////////////////////////
+
+        server(std::size_t size,const string& port)
+            :schedulers_(size),acceptor_(schedulers_[0].get_io_service()),port_(port),msg_ch_(512) {
+        }
+        ~server() {
+        }
+        //协程handle_msg主要负责处理2类消息，一类是ctrl_t消息，ctrl_t消息用于通知客户端的登入和登出，并维护客户端代理的列表。另外一类是string类型的消息，handle_msg协程将这种类型的小心发送到。
+        void handle_msg(orchid::coroutine_handle co) {
+            msg_type msg;
+            for (;;) {
+                msg_ch_.recv(msg,co);
+                if(msg.which() == 0) {// string
+                    cout<<boost::get<string>(msg)<<endl;
+                    for(typename client_list_type::iterator it = clients_.begin(); it != clients_.end(); ++it) {
+                        (*it) -> ch_.send(boost::get<string>(msg),co);
+                    }
+                } else if(msg.which() == 1) {//ctrl_t
+                    if(boost::get<ctrl_t>(msg).cmd_ == REGISTER) {
+                        cout<<"on register"<<endl;
+                        clients_.push_back(boost::get<ctrl_t>(msg).client_);
+                    } else if(boost::get<ctrl_t>(msg).cmd_ == UNREGISTER) {
+                        cout<<"on unregister"<<endl;
+                        boost::get<ctrl_t>(msg).client_ -> ch_.close();
+                        clients_.remove(boost::get<ctrl_t>(msg).client_);
+                    } else {
+                        throw std::runtime_error("unkonw cmd! should never hanppened!");
+                    }
+                } else {
+                    throw std::runtime_error("unkonw msg! should never hanppened!");
+                }
+            }
+        }
+
+        //
+        void handle_accept(orchid::coroutine_handle co) {
+        try {
+            int index = 1;
+            acceptor_.bind_and_listen(port_);
+            for (;;) {
+                if(index >= schedulers_.size()) index = 0;
+                boost::shared_ptr<Client> c(new Client(schedulers_[index++],*this));
+                acceptor_.accept(c->sock_,co);
+                cout<<"on accept!"<<endl;
+                c -> start();
+                ctrl_t msg;
+                msg.cmd_ = REGISTER;
+                msg.client_ = c;
+                msg_ch_.send(msg,co);
+            }
+        } catch (boost::system::system_error& e) {
+            cout<<e.code()<<" "<<e.what()<<endl;
+        }
+    }
+
+        void run() {
+            schedulers_[0].spawn(boost::bind(&self_type::handle_accept,this,_1),STACK_SIZE);
+            schedulers_[0].spawn(boost::bind(&self_type::handle_msg,this,_1),STACK_SIZE);
+            schedulers_.run();
+        }
+
+    };
+
+    //客户端代理类，
+    struct client:public boost::enable_shared_from_this<client> {
+        orchid::scheduler& sche_;
+        server<client>& server_;
+        orchid::socket sock_;
+        orchid::chan<string> ch_;
+
+        client(orchid::scheduler& sche,server<client>& s)
+            :sche_(sche),server_(s),
+            sock_(sche_.get_io_service()),ch_(32) {
+
+        }
+        ~client() {
+            
+        }
+
+        //启动发送和接收协程。
+        void start() {
+             sche_.spawn(boost::bind(&client::sender,this -> shared_from_this(),_1),STACK_SIZE);
+             sche_.spawn(boost::bind(&client::receiver,this -> shared_from_this(),_1),STACK_SIZE);
+        }
+
+        //不断从主服务协程接收消息，并发送至客户端。
+        void sender(orchid::coroutine_handle& co) {
+            string str;
+            orchid::tcp_ostream out(sock_,co);
+            while(ch_.recv(str,co)) {
+                out<<str<<endl;
+            }
+        }
+
+        //不断从客户端接收小心，知道客户端断开连接。
+        void receiver(orchid::coroutine_handle& co) {
+            orchid::tcp_istream in(sock_,co);
+            for (string str;std::getline(in,str);) {
+                server_.msg_ch_.send(str,co);
+            }
+            //客户端断开连接后会退出循环。此时发送注销信息到主服务协程。
+            server<client>::ctrl_t ctrl_msg;
+            ctrl_msg.cmd_ = server<client>::UNREGISTER;
+            ctrl_msg.client_ = this -> shared_from_this();
+            server_.msg_ch_.send(ctrl_msg, co);
+
+        }
+    };
+
+    int main(int argc,char* argv[]) {
+        string port = argv[1];
+        server<client> s(4,port);
+        s.run();
+    }
+
 
 
 #第五个栗子:benchmark

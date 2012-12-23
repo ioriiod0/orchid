@@ -37,7 +37,7 @@ struct server {
         client_sp_type client_;
     };
     typedef boost::variant<string,ctrl_t> msg_type;
-
+    
     ///////////////////////
     orchid::scheduler_group& schedulers_;
     orchid::acceptor acceptor_;
@@ -52,6 +52,7 @@ struct server {
     ~server() {
     }
 
+    //主服务协程，不停的从chan里面的读取消息，并处理消息。
     void process_msg(orchid::coroutine_handle co) {
         msg_type msg;
         for (;;) {
@@ -119,7 +120,6 @@ struct client:public boost::enable_shared_from_this<client> {
 
     }
     ~client() {
-        cout<<"client's done!"<<endl;
     }
 
     void start() {
@@ -127,7 +127,7 @@ struct client:public boost::enable_shared_from_this<client> {
          sche_.spawn(boost::bind(&client::receiver,this -> shared_from_this(),_1),STACK_SIZE);
     }
 
-    void sender(orchid::coroutine_handle& co) {
+    void sender(orchid::coroutine_handle co) {
         string str;
         orchid::tcp_ostream out(sock_,co);
         try {
@@ -139,18 +139,12 @@ struct client:public boost::enable_shared_from_this<client> {
         }
     }
 
-    void receiver(orchid::coroutine_handle& co) {
-        try {
-            orchid::tcp_istream in(sock_,co);
-            for (string str;std::getline(in,str);) {
-                server_.msg_ch_.send(str,co);
-            }
-
-        } catch (boost::system::system_error& e) {
-            cerr<<e.code()<<" "<<e.what()<<endl;
+    void receiver(orchid::coroutine_handle co) {
+        orchid::tcp_istream in(sock_,co);
+        for (string str;std::getline(in,str);) {
+            server_.msg_ch_.send(str,co);
         }
-        if(sock_.is_open())
-            sock_.close();
+
         server<client>::ctrl_t ctrl_msg;
         ctrl_msg.cmd_ = server<client>::UNREGISTER;
         ctrl_msg.client_ = this -> shared_from_this();
