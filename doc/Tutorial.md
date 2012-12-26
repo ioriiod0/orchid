@@ -33,9 +33,9 @@ orchid的实现严重依赖于boost，依赖的主要子库包括：boost.contex
 
 orchid 本身是个只包含头文件的模板库，拷贝到指定的目录即可，但是orchid依赖的boost库需要编译。而且在使用orchid的时需要链接 boost_context boost_iostreams boost_system boost_thread 等子库（参见unit_test里的CMakeLists.txt）。
 
-boost需要采用最新的svn里的版本。1.52及一下的版本缺少boost.atomic等子库。
+boost需要采用最新的svn里的版本，因为1.52及以下版本缺少boost.atomic等子库。
 
-###MAC OS
+####MAC OS
 
     git clone https://github.com/ioriiod0/boost-svn.git
     cd boost-svn
@@ -47,7 +47,7 @@ boost需要采用最新的svn里的版本。1.52及一下的版本缺少boost.at
     cp -r orchid <安装路径>
 
 
-###LINUX
+####LINUX
     
     git clone https://github.com/ioriiod0/boost-svn.git
     cd boost-svn
