@@ -17,7 +17,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/variant.hpp>
 
-#include "../include/all.hpp"
+#include "../orchid/all.hpp"
 
 using std::string;
 using std::cerr;
@@ -37,7 +37,7 @@ struct server {
         client_sp_type client_;
     };
     typedef boost::variant<string,ctrl_t> msg_type;
-    
+
     ///////////////////////
     orchid::scheduler_group& schedulers_;
     orchid::acceptor acceptor_;
@@ -129,13 +129,9 @@ struct client:public boost::enable_shared_from_this<client> {
 
     void sender(orchid::coroutine_handle co) {
         string str;
-        orchid::tcp_ostream out(sock_,co);
-        try {
-            while(ch_.recv(str,co)) {
-                out<<str<<endl;
-            }
-        } catch (boost::system::system_error& e) {
-            cerr<<e.code()<<" "<<e.what()<<endl;
+        orchid::tcp_ostream out(sock_,co);       
+        while(ch_.recv(str,co)) {
+            out<<str<<endl;
         }
     }
 
@@ -144,12 +140,10 @@ struct client:public boost::enable_shared_from_this<client> {
         for (string str;std::getline(in,str);) {
             server_.msg_ch_.send(str,co);
         }
-
         server<client>::ctrl_t ctrl_msg;
         ctrl_msg.cmd_ = server<client>::UNREGISTER;
         ctrl_msg.client_ = this -> shared_from_this();
         server_.msg_ch_.send(ctrl_msg, co);
-
     }
 };
 

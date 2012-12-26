@@ -12,7 +12,7 @@
 #include <iostream>
 #include <boost/lexical_cast.hpp>
 
-#include "../include/all.hpp"
+#include "../orchid/all.hpp"
 
 
 using std::string;

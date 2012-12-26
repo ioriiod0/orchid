@@ -16,7 +16,7 @@
 #include <boost/iostreams/stream.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include "../include/all.hpp"
+#include "../orchid/all.hpp"
 
 using std::string;
 using std::cerr;

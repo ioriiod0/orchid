@@ -14,7 +14,7 @@
 #include <boost/iostreams/copy.hpp>
 #include <signal.h>
 
-#include "../include/all.hpp"
+#include "../orchid/all.hpp"
 
 using std::string;
 using std::cout;
