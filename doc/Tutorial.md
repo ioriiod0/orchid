@@ -37,7 +37,7 @@ boost需要采用最新的svn里的版本，因为1.52及以下版本缺少boost
 
 ####MAC OS
 
-    git clone https://github.com/ioriiod0/boost-svn.git
+    git clone https://github.com/ryppl/boost-svn
     cd boost-svn
     ./bootstrap.sh
     ./b2 toolset=clang cxxflags="-arch x86_64" linkflags="-arch x86_64" install
@@ -49,7 +49,7 @@ boost需要采用最新的svn里的版本，因为1.52及以下版本缺少boost
 
 ####LINUX
     
-    git clone https://github.com/ioriiod0/boost-svn.git
+    git clone https://github.com/ryppl/boost-svn
     cd boost-svn
     ./bootstrap.sh
     ./b2 install
