@@ -1,10 +1,10 @@
 #简介
 
 ##什么是orchid?
-orchid是一个构建于强大的boost库基础上的C++库，类似于python下的gevent/eventlet，为用户提供基于协程的并发模型。
+orchid是一个构建于boost库基础上的C++库，类似于python下的gevent/eventlet，为用户提供基于协程的并发模型。
 
 ####什么是协程：
-协程，顾名思义，协作式程序，其思想是，一系列互相依赖的协程间依次使用CPU，每次只有一个协程工作，而其他协程处于休眠状态。协程在控制离开时暂停执行，当控制再次进入时只能从离开的位置继续执行。
+协程，即协作式程序，其思想是，一系列互相依赖的协程间依次使用CPU，每次只有一个协程工作，而其他协程处于休眠状态。协程在控制离开时暂停执行，当控制再次进入时只能从离开的位置继续执行。
 协程已经被证明是一种非常有用的程序组件，不仅被python、lua、ruby等脚本语言广泛采用，而且被新一代面向多核的编程语言如golang rust-lang等采用作为并发的基本单位。
 
 ####协程可以被认为是一种用户空间线程，与传统的抢占式线程相比，有2个主要的优点：
@@ -64,7 +64,7 @@ boost需要采用最新的svn里的版本，因为1.52及以下版本缺少boost
     
     //函数签名为 void(orchid::coroutine_handle) 的函数
     void f(orchid::coroutine_handle co) {
-        std::cout<<"f:hello world 1"<<std::endl;
+        std::cout<<"f:hello world"<<std::endl;
     }
 
     //函数签名为 void(orchid::coroutine_handle,const char*) 的函数
@@ -156,9 +156,9 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
       
     }
 
-orchid可以使用户以流的形式来操作套接字。输入流和输出流分别提供了std::istream和std::ostream的接口；输入流和输出流是带缓冲的，如果用户需要无缓冲的读写socket或者自建缓冲，可以直接调用orchid::socket的read和write函数。但是需要注意这两个函数会抛出boost::system_error异常来表示错误（参见benchmark_orchid_client和benchmar_orchid_server）。
-
 协程首先在传入的套接字上创建了一个输入流和一个输出流，分别代表了TCP的输入和输出。然后不断地从输入流中读取一行，并输出到输出流当中。当socket上的TCP连接断开时，输入流和输出流的eof标志为会被置位，因此循环结束，协程退出。
+
+orchid可以使用户以流的形式来操作套接字。输入流和输出流分别提供了std::istream和std::ostream的接口；输入流和输出流是带缓冲的，如果用户需要无缓冲的读写socket或者自建缓冲，可以直接调用orchid::socket的read和write函数。但是需要注意这两个函数会抛出boost::system_error异常来表示错误（参见benchmark_orchid_client和benchmar_orchid_server）。
 
 最后是main函数：
 
@@ -192,7 +192,7 @@ orchid可以使用户以流的形式来操作套接字。输入流和输出流�
 
 处理socket io的协程分别创建了一个green化的socket和一个green话的标准输出，然后连接到echo server上，不断执行 输出 -> 接收 -> 打印 这个流程。 
 
-为了能够从外部打断client的执行，我们还需要一个协程来处理中断信号，这样我们就可以用ctrl+c来中断程序的执行：
+为了能够从外部打断client的执行，我们还需要一个协程来处理中断信号，这样我们就可以用ctrl+c来正确的中断程序的执行：
 
     void handle_sig(orchid::coroutine_handle co) {
         orchid::signal sig(co -> get_scheduler().get_io_service());
@@ -222,7 +222,7 @@ orchid可以使用户以流的形式来操作套接字。输入流和输出流�
 
 在上面这个echo server的例子中，我们采用了一种 coroutine per connection 的编程模型，与传统的 thread per connection 模型一样的简洁清晰，但是整个程序实际上运行在同一线程当中。
 由于协程的切换和内存开销远远小于线程，因此我们可以轻易的同时启动上千协程来同时服务上千连接，这是 thread per connection的模型很难做到的；
-在性能方面，整个green化的IO系统实际上是使用boost.asio这种高性能的异步io库实现的,与原始的asio相比，orchid的性能损耗非常小，基本持平。
+在性能方面，整个green化的IO系统实际上是使用boost.asio这种高性能的异步io库实现的,与原始的asio相比，orchid的性能损耗非常小，性能基本持平。
 因此通过orchid，我们可以在保持同步IO模型简洁性的同时，获得近似于异步IO模型的高性能。
 
 
@@ -292,10 +292,10 @@ chan 有3个重要的接口：
 
 
 ##第四个栗子:chat server
-这次我们来一个复杂一些的例子：chat server 和 chat client。从这个例子我们将看到一些有用的技巧，比如如何使用boost::shared_from_this来管理协程间共享对象的声明周期；如何利用boost.variant在一个chan中接收多种类型消息。
+这次我们来一个复杂一些的例子：chat server 和 chat client。从这个例子中我们将看到一些有用的技巧，比如如何使用boost::shared_from_this来管理协程间共享对象的生命周期；如何利用boost.variant在一个chan中接收多种类型消息。
 
 
-先从较为简单的chat clent开始：在chat client中我们将创建两个协程，一个不断从标准输入读取输入，然后发送到chat server；另一个则不断从chat server接受消息并发送到标准输出上。
+先从较为简单的chat clent开始：在chat client中我们将创建两个协程，一个不断从本机的标准输入读取输入，然后发送到chat server；另一个则不断从chat server接受消息并发送到本机的标准输出上。
 
     const static std::size_t STACK_SIZE = 64*1024;
 
@@ -304,8 +304,8 @@ chan 有3个重要的接口：
     public:
         chat_client(const string& ip,const string& port)
             :sche_(),
-            stdin_(sche_.get_io_service(),STDIN_FILENO),
-            stdout_(sche_.get_io_service(),STDOUT_FILENO),
+            stdin_(sche_.get_io_service(),STDIN_FILENO),//green化的标准输入
+            stdout_(sche_.get_io_service(),STDOUT_FILENO),//green化的标准输出
             sock_(sche_.get_io_service()),
             is_logined_(false),ip_(ip),port_(port) {
 
@@ -412,15 +412,15 @@ chan 有3个重要的接口：
         client.run();
     }
 
-在上面的代码中，我们利用boost.bind的强大能力，使用类的成员函数创建了协程。
+在上面的代码中，我们利用了boost.bind的强大能力，使用类的成员函数创建了协程。
 
 
 然后是chat server:
 
-chat server中有2个类，server和client。server主要实现了chat server的主要逻辑。而client则是客户端代理类，从客户端处负责接收和发送数据。
+chat server中有2个类，server和client。类server实现了chat server的主要逻辑，类client则是客户端代理类，负责从客户端处接收和发送数据。
 
-server类的职责包括：负责维护客户端列表以及广播客户端的消息。
-因此server处理的消息包含2类，第一类是控制消息，即下面代码中的ctrl_t类型，表示了客户端的到来和离开；
+server类的职责包括：维护客户端列表，广播某个客户端的发来的消息。
+因此server处理的消息有2类，第一类是控制消息（下面代码中的ctrl_t类型），代表了客户端的到来和离开事件；
 另外一类是文本消息，server类需要向所有的客户端转发、广播该类消息。不管是处理第一种类型的消息还是处理第二种类型的消息，都需要访问到其内部维护的客户端列表。为了同步这些访问，我们需要在同一个chan中接收这两种消息。
 
     const static std::size_t STACK_SIZE = 64*1024;
