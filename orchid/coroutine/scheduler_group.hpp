@@ -48,7 +48,7 @@ public:
         return size_;
     }
 
-    //simple round-robin 
+    //
     scheduler_type& operator[](std::size_t i) {
         return sches_[i];
     }
@@ -60,7 +60,6 @@ public:
 
 private:
 
-    //boost::mt19937 rand_gen_;
     std::size_t size_;
     boost::thread_group tg_;
     boost::scoped_array<scheduler_type> sches_;
