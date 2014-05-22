@@ -50,7 +50,6 @@ void receiver(orchid::coroutine_handle co,int id,orchid::chan<int>& ch) {
         int n = sprintf(buf,"receiver %d receive:%d\r\n",id,sender);
         console.write(buf,n);
     }
-
 }
 
 void test_one_scheduler() {

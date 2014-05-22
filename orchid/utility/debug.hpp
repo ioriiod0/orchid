@@ -4,7 +4,7 @@
 
 #include <stdio.h>  
   
-#define __ORCHID_DEBUG__
+// #define __ORCHID_DEBUG__
   
 #ifdef __ORCHID_DEBUG__ 
 #define ORCHID_DEBUG(format,...)  printf("File: " __FILE__", Line: %05d: " format"\n", __LINE__, ##__VA_ARGS__)

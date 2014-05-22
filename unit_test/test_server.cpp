@@ -44,8 +44,11 @@ void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
         }
 
     } catch (const orchid::io_error& e) {
-        ORCHID_ERROR("id %lu msg:%s",co->id(),e.what());
-        sock->close();
+        if (e.code() == boost::asio::error::eof) {
+            ORCHID_DEBUG("id %lu msg:%s",co->id(),"socket closed by remote side!");
+        } else {
+            ORCHID_ERROR("id %lu msg:%s",co->id(),e.what());
+        }
     }
 
 }

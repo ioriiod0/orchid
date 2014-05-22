@@ -80,12 +80,10 @@ struct server {
                         ORCHID_DEBUG("on register");
                         boost::get<ctrl_t>(msg).client_->start();
                         clients_.push_back(boost::get<ctrl_t>(msg).client_);
-                        ORCHID_DEBUG("clients:%d",clients_.size());
                     } else if(boost::get<ctrl_t>(msg).cmd_ == UNREGISTER) {
                         ORCHID_DEBUG("on unregister");
                         boost::get<ctrl_t>(msg).client_->close();
                         clients_.remove(boost::get<ctrl_t>(msg).client_);
-                        ORCHID_DEBUG("clients:%d",clients_.size());
                     } else {
                         throw std::runtime_error("unkonw cmd! should never hanppened!");
                     }
@@ -97,23 +95,23 @@ struct server {
     }
 
     void accept(orchid::coroutine_handle co) {
-    try {
-        int index = 0;
-        acceptor_.bind_and_listen(port_,true);
-        for (;;) {
-            if(index >= schedulers_.size()) index = 0;
-            boost::shared_ptr<Client> c(new Client(schedulers_[index++],*this));
-            acceptor_.accept(c->sock_,co);
-            ORCHID_DEBUG("on accept");
-            ctrl_t msg;
-            msg.cmd_ = REGISTER;
-            msg.client_ = c;
-            msg_ch_.send(msg,co);
+        try {
+            int index = 0;
+            acceptor_.bind_and_listen(port_,true);
+            for (;;) {
+                if(index >= schedulers_.size()) index = 0;
+                boost::shared_ptr<Client> c(new Client(schedulers_[index++],*this));
+                acceptor_.accept(c->sock_,co);
+                ORCHID_DEBUG("on accept");
+                ctrl_t msg;
+                msg.cmd_ = REGISTER;
+                msg.client_ = c;
+                msg_ch_.send(msg,co);
+            }
+        } catch (boost::system::system_error& e) {
+            ORCHID_ERROR("err:%s",e.what());
         }
-    } catch (boost::system::system_error& e) {
-        ORCHID_ERROR("err:%s",e.what());
     }
-}
 
     void run() {
         main_sche_.spawn(boost::bind(&self_type::accept,this,_1));
@@ -163,7 +161,6 @@ struct client_agent:public boost::enable_shared_from_this<client_agent> {
             ORCHID_ERROR("err:%s",e.what());
         }
         ORCHID_DEBUG("sender: exit!");
-
     }
 
     void receiver(orchid::coroutine_handle co) {

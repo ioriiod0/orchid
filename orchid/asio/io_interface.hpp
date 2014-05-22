@@ -49,26 +49,37 @@ public:
         
     }
 public:
+    //尝试读取size个字节到data中，返回值为实际读取的字节数，实际读取的字节数可能小于size
+    //如果发生错误，被记录到e中
     std::size_t read(char* data,std::size_t size,boost::system::error_code& e) {
         return input_.read_some(boost::asio::buffer(data,size),co_,e);
     }
-
+    //尝试读取size个字节到data中，返回值为实际读取的字节数，实际读取的字节数可能小于size
+    //如果发生错误，抛出异常
     std::size_t read(char* data,std::size_t size) {
         return input_.read_some(boost::asio::buffer(data,size),co_);
     }
 
+    //读取size个字节到data中，直到读满才返回。返回值为实际读取的字节数
+    //如果发生错误，被记录到e中
     std::size_t read_full(char* data,std::size_t size,boost::system::error_code& e) {
         return orchid::read(input_,boost::asio::buffer(data,size),co_,e);
     }
 
+    //读取size个字节到data中，直到读满才返回。返回值为实际读取的字节数
+    //如果发生错误，抛出异常
     std::size_t read_full(char* data,std::size_t size) {
         return orchid::read(input_,boost::asio::buffer(data,size),co_);
     }
 
+    //读取至少n个字节到data中。size为缓冲区长度，返回值为实际读取的字节数。
+    //如果发生错误，被记录到e中
     std::size_t read_at_least(char* data,std::size_t size,std::size_t n,boost::system::error_code& e) {
         return orchid::read(input_,boost::asio::buffer(data,size),boost::asio::transfer_at_least(n),co_,e);
     }
 
+    //读取至少n个字节到data中。size为缓冲区长度，返回值为实际读取的字节数。
+    //如果发生错误，抛出异常
     std::size_t read_at_least(char* data,std::size_t size,std::size_t n) {
         return orchid::read(input_,boost::asio::buffer(data,size),boost::asio::transfer_at_least(n),co_);
     }
@@ -96,26 +107,38 @@ public:
         
     }
 public:
+    //尝试写入size个字节，返回值为实际写入的字节数，实际写入的字节数可能小于size
+    //如果发生错误，被记录到e中
     std::size_t write(const char* data,std::size_t size,boost::system::error_code& e) {
         return output_.write_some(boost::asio::buffer(data,size),co_,e);
     }
 
+    //尝试写入size个字节，返回值为实际写入的字节数，实际写入的字节数可能小于size
+    //如果发生错误，抛出异常
     std::size_t write(const char* data,std::size_t size) {
         return output_.write_some(boost::asio::buffer(data,size),co_);
     }
 
+    //写入size个字节，直到写完才返回，返回值为实际写入的字节数。
+    //如果发生错误，被记录到e中
     std::size_t write_full(const char* data,std::size_t size,boost::system::error_code& e) {
         return orchid::write(output_,boost::asio::buffer(data,size),co_,e);
     }
 
+    //写入size个字节，直到写完才返回，返回值为实际写入的字节数。
+    //如果发生错误，抛出异常
     std::size_t write_full(const char* data,std::size_t size) {
         return orchid::write(output_,boost::asio::buffer(data,size),co_);
     }
 
+    //写入至少n个字节。size为缓冲区长度。返回值为实际写入的字节数。
+    //如果发生错误，被记录到e中
     std::size_t write_at_least(const char* data,std::size_t size,std::size_t n,boost::system::error_code& e) {
         return orchid::write(output_,boost::asio::buffer(data,size),boost::asio::transfer_at_least(n),co_,e);
     }
 
+    //写入至少n个字节。size为缓冲区长度。返回值为实际写入的字节数。
+    //如果发生错误，抛出异常
     std::size_t write_at_least(const char* data,std::size_t size,std::size_t n) {
         return orchid::write(output_,boost::asio::buffer(data,size),boost::asio::transfer_at_least(n),co_);
     }
@@ -155,15 +178,17 @@ public:
         
     }
 public:
+    //已缓存的字节数。
     std::size_t buffered() const {
         return w_ - r_;
     }
-
+    //缓冲区的大小
     std::size_t size() const {
         return r_buff_.size();
     }
 public:
-
+    //尝试读取size个字节到data中，返回实际读取的字节数，实际读取的字节数可能少于size。
+    //如果有错误，记录于e中。
     std::size_t read(char* data,std::size_t size,boost::system::error_code& e) {
         if (size <= 0 ) {
             return 0;
@@ -193,6 +218,8 @@ public:
 
     }
 
+    //尝试读取size个字节到data中，返回实际读取的字节数，实际读取的字节数可能少于size。
+    //如果有错误，抛出异常
     std::size_t read(char* data,std::size_t size) {
         boost::system::error_code e;
         std::size_t bytes_transferred = read(data,size,e);
@@ -203,7 +230,8 @@ public:
     }
 
 
-
+    //尝试读取数据到buf中，直到读取到delim为止，返回实际读取的字节数
+    //如果有错误，记录在e中。
     template <typename Traits,typename Allocator>
     std::size_t read_until(std::basic_string<char,Traits,Allocator>& buf,char delim,boost::system::error_code& e) {
 
@@ -258,6 +286,8 @@ public:
 
     }
 
+    //尝试读取数据到buf中，直到读取到delim为止，返回实际读取的字节数
+    //如果有错误，抛出异常。
     template <typename Traits,typename Allocator>
     std::size_t read_until(std::basic_string<char,Traits,Allocator>& buf,char delim) {
         boost::system::error_code e;
@@ -269,6 +299,8 @@ public:
     }
 
 
+    //尝试读取数据到buf中，直到读取到delim为止，返回实际读取的字节数
+    //如果有错误，记录在e中。
     template <typename Traits,typename Allocator>
     std::size_t read_until(std::basic_string<char,Traits,Allocator>& buf,const std::basic_string<char,Traits,Allocator>& delim,boost::system::error_code& e) {
 
@@ -323,6 +355,8 @@ public:
 
     }
 
+    //尝试读取数据到buf中，直到读取到delim为止，返回实际读取的字节数
+    //如果有错误，抛出异常。
     template <typename Traits,typename Allocator>
     std::size_t read_until(std::basic_string<char,Traits,Allocator>& buf,const std::basic_string<char,Traits,Allocator>& delim) {
         boost::system::error_code e;
@@ -334,18 +368,24 @@ public:
     }
 
 
+    //尝试读取数据到buf中，直到读取到delim为止，返回实际读取的字节数
+    //如果有错误，记录在e中。
     template <typename Traits,typename Allocator>
     std::size_t read_until(std::basic_string<char,Traits,Allocator>& buf,const char* delim,boost::system::error_code& e) {
         return read_until(buf,std::string(delim),e);
     }
 
 
+    //尝试读取数据到buf中，直到读取到delim为止，返回实际读取的字节数
+    //如果有错误，抛出异常。
     template <typename Traits,typename Allocator>
     std::size_t read_until(std::basic_string<char,Traits,Allocator>& buf,const char* delim) {
         return read_until(buf,std::string(delim));
     }
 
 
+    //读取size个字节到data中，直到读满为止，返回实际读取的字节数
+    //如果有错误，记录在e中。
     std::size_t read_full(char* data,std::size_t size,boost::system::error_code& e) {
         std::size_t n = 0;
         std::size_t size_to_read = size;
@@ -362,6 +402,8 @@ public:
         return size_read;
     }
 
+    //读取size个字节到data中，直到读满为止，返回实际读取的字节数
+    //如果有错误，抛出异常。
     std::size_t read_full(char* data,std::size_t size) {
         boost::system::error_code e;
         std::size_t bytes_transferred = read_full(data,size,e);
@@ -446,20 +488,21 @@ public:
 
     }
 public:
+    //缓存的字节数
     std::size_t buffered() const {
         return n_;
     }
-
+    //缓冲区大小
     std::size_t size() const {
         return w_buff_.size();
     }
-
+    //可用空间大小
     std::size_t available() const {
         return size() - buffered();
     }
 
 public:
-
+    
     std::size_t write(const char* data,std::size_t size,boost::system::error_code& e) {
         std::size_t total = 0;
         while (size > available()) {
