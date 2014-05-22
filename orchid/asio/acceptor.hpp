@@ -17,38 +17,24 @@
 
 #include "io_service.hpp"
 #include "socket.hpp"
+#include "throw_error.hpp"
+#include "handlers.hpp"
+#include "../utility/debug.hpp"
 
 
 namespace orchid { namespace detail {
 
-template <typename Coroutine>
-class acceptor_basic {
+class acceptor_basic:public boost::asio::ip::tcp::acceptor {
 public:
-    typedef socket_basic<Coroutine> socket_type;
+    typedef socket_basic socket_type;
     typedef io_service io_service_type;
-    typedef acceptor_basic<Coroutine> self_type;
-    typedef Coroutine coroutine_type;
-    typedef boost::shared_ptr<coroutine_type> coroutine_pointer;
-    typedef boost::asio::ip::tcp::acceptor impl_type;
-    typedef typename impl_type::native_handle_type native_handle_type;
+    // typedef acceptor_basic<Coroutine> self_type;
+    // typedef Coroutine coroutine_type;
+    // typedef typename coroutine_type::coroutine_pointer coroutine_pointer;
 
-    struct accept_handler {
-        accept_handler(coroutine_pointer co,boost::system::error_code& e):
-            co_(co),e_(e) {
-        }
-
-        void operator()(const boost::system::error_code& e) {
-            e_ = e;
-            co_ -> resume();
-        }
-
-        coroutine_pointer co_;
-        boost::system::error_code& e_;
-    };
 
 public:
-    acceptor_basic(io_service_type& io_s):
-        io_service_(io_s),acceptor_(io_s.get_impl()) {
+    acceptor_basic(io_service_type& io_s):boost::asio::ip::tcp::acceptor(io_s) {
 
     }
 
@@ -56,65 +42,55 @@ public:
         
     }
 public:
-    void bind_and_listen(const std::string& port,
-                        bool reuse_addr = false) {
-        boost::asio::ip::tcp::resolver resolver(acceptor_.get_io_service());
+    void bind_and_listen(const std::string& port,bool reuse_addr) {
+        boost::asio::ip::tcp::resolver resolver(get_io_service());
         boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(),port);
         boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
-        acceptor_.open(endpoint.protocol());
+        open(endpoint.protocol());
         if(reuse_addr) {
-            acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
+            set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
         }
-        acceptor_.bind(endpoint);
-        acceptor_.listen();
+        bind(endpoint);
+        listen(boost::asio::socket_base::max_connections);
     }
 
-    void accept(socket_type& sock,coroutine_pointer co) {
+    void bind_and_listen(const std::string& port,bool reuse_addr,boost::system::error_code& e) {
+        try {
+            bind_and_listen(port,reuse_addr);
+        } catch (const boost::system::system_error& ex) {
+            e = ex.code();
+            ORCHID_DEBUG("bind_and_listen error: %s",e.message().c_str());
+        }
+        
+    }
+
+
+    template <typename CO>
+    void accept(socket_type& sock,CO co,boost::system::error_code& e) {
         BOOST_ASSERT(co != NULL);
-        boost::system::error_code e;
-        accept_handler handler(co,e);
-        acceptor_.async_accept(sock.get_impl(), handler);
+        accept_handler<CO> handler(co,e);
+        async_accept(sock, handler);
         ///////////////////////////////////
         co -> yield();
         ////////////////////////////////////
         if(e) {
-            throw boost::system::system_error(e);
+            ORCHID_DEBUG("acceptor accept error: %s",e.message().c_str());
+        }
+        return;
+    }
+
+    template <typename CO>
+    void accept(socket_type& sock,CO co) {
+        BOOST_ASSERT(co != NULL);
+        boost::system::error_code e;
+        accept(sock,co,e);
+        ////////////////////////////////////
+        if(e) {
+            throw_error(e,"acceptor accept");
         }
     }
 
 
-    void is_open() const {
-        return acceptor_.is_open();
-    }
-
-    impl_type& get_impl() {
-        return acceptor_;
-    }
-
-    const impl_type& get_impl() const {
-        return acceptor_;
-    }
-
-    native_handle_type native_handle() {
-        return acceptor_.native_handle();
-    }
-
-    void close() {
-        //if(acceptor_.is_open())
-        acceptor_.close();
-    }
-
-    const io_service_type& get_io_service() const {
-        return io_service_;
-    }
-
-    io_service_type& get_io_service() {
-        return io_service_;
-    }
-
-private:
-    io_service_type& io_service_;
-    impl_type acceptor_;
 };
 
 }

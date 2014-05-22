@@ -55,7 +55,7 @@ public:
             stacksize = min;
         }
         stacksize = stacksize + sizeof(boost::context::fcontext_t) + 15;
-        stacksize = ((stacksize + pagesize- 1) & ~(pagesize - 1)) +pagesize;
+        stacksize = ((stacksize + pagesize- 1) & ~(pagesize - 1)) + pagesize;
         return stacksize < max ? stacksize : max;
     }
 public:

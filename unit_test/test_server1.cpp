@@ -22,25 +22,16 @@ using std::cerr;
 using std::endl;
 
 
-const static std::size_t STACK_SIZE = 16*1024;
-
-
-
 typedef boost::shared_ptr<orchid::socket> socket_ptr;
 
 void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
-    orchid::buffered_reader<orchid::socket> reader(*sock,co,16);
-    orchid::buffered_writer<orchid::socket> writer(*sock,co,16);
-
+    orchid::reader<orchid::socket> reader(*sock,co);
+    std::size_t n = 0;
+    char buf[409600] = {0};
     try {
-        std::string line;
-        std::size_t n = 0;
-
         for(;;) {
-            n = reader.read_until(line,'\n');
-            ORCHID_DEBUG("id %lu recv: %s",co->id(),line.c_str());
-            writer.write(line.c_str(),line.size());
-            writer.flush();
+            n = reader.read(buf,409600);
+            ORCHID_DEBUG("id %lu n:%d",co->id(),n);
         }
 
     } catch (const orchid::io_error& e) {
@@ -53,11 +44,11 @@ void handle_io(orchid::coroutine_handle co,socket_ptr sock) {
 void handle_accept(orchid::coroutine_handle co) {
     try {
         orchid::acceptor acceptor(co -> get_io_service());
-        acceptor.bind_and_listen("5678",false);
+        acceptor.bind_and_listen("5678",true);
         for(;;) {
             socket_ptr sock(new orchid::socket(co -> get_io_service()));
             acceptor.accept(*sock,co);
-            co -> get_scheduler().spawn(boost::bind(handle_io,_1,sock));
+            co -> get_scheduler().spawn(boost::bind(handle_io,_1,sock),orchid::coroutine::maximum_stack_size());
         }
     }
     catch(orchid::io_error& e) {
@@ -69,6 +60,7 @@ int main() {
 
     orchid::scheduler sche;
     ORCHID_DEBUG("id:%lu",sche.id());
-    sche.spawn(handle_accept,orchid::coroutine::minimum_stack_size());
+    ORCHID_DEBUG("stack size:%lu",orchid::coroutine::maximum_stack_size());
+    sche.spawn(handle_accept,orchid::coroutine::maximum_stack_size());
     sche.run();
 }

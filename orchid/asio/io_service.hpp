@@ -9,52 +9,27 @@
 #ifndef __ORCHID_IO_SERVICE_H__
 #define __ORCHID_IO_SERVICE_H__
 
-#include "boost/asio.hpp"
-#include "boost/bind.hpp"
-#include "boost/assert.hpp"
+#include <boost/asio.hpp>
+#include <boost/bind.hpp>
+#include <boost/assert.hpp>
+#include <boost/utility.hpp>
 
 namespace orchid { namespace detail {
 
 
-class io_service {
+class io_service:public boost::asio::io_service {
+    boost::asio::io_service::work work_;
 public:
-    typedef boost::asio::io_service impl_type;
-
-public:
-    io_service():impl_(),work_(impl_) {
+    io_service():boost::asio::io_service(),work_(*this) {
 
     }
     ~io_service() {
         
     }
-public:
-    void run() {
-        impl_.run();
-    }
 
-    template <typename F>
-    void post(const F& f) {
-        impl_.post(f);
-    }
-
-    impl_type& get_impl() {
-        return impl_;
-    }
-
-    const impl_type& get_impl() const {
-        return impl_;
-    }
-
-    void stop() {
-        impl_.stop();
-    }
-
-private:
-    impl_type impl_;
-    boost::asio::io_service::work work_; //keep running 
     
 };
-
+    // typedef boost::asio::io_service io_service;
 
 }}
 

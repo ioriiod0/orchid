@@ -11,44 +11,33 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <boost/utility.hpp>
+#include <boost/system/error_code.hpp>
+#include <boost/system/system_error.hpp>
+
 #include "io_service.hpp"
+#include "throw_error.hpp"
+#include "handlers.hpp"
+#include "../utility/debug.hpp"
 
 namespace orchid { namespace detail {
 
-template <typename Coroutine>
-class descriptor_basic:boost::noncopyable {
+class descriptor_basic:public boost::asio::posix::stream_descriptor {
 public:
-    typedef boost::asio::posix::stream_descriptor impl_type;
-    typedef typename impl_type::native_handle_type native_handle_type;
+    typedef boost::asio::posix::stream_descriptor::native_handle_type native_handle_type;
     typedef io_service io_service_type;
-    typedef descriptor_basic<Coroutine> self_type;
-    typedef Coroutine coroutine_type;
-    typedef boost::shared_ptr<coroutine_type> coroutine_pointer;
+    // typedef descriptor_basic<Coroutine> self_type;
+    // typedef Coroutine coroutine_type;
+    // typedef typename coroutine_type::coroutine_pointer coroutine_pointer;
 
-    struct io_handler {
-        io_handler(coroutine_pointer co,boost::system::error_code& e,std::size_t& bytes_transferred):
-            e_(e),co_(co),bytes_transferred_(bytes_transferred) {
-        }
-
-        void operator()(const boost::system::error_code& e,std::size_t bytes_transferred){
-            e_ = e;
-            bytes_transferred_ = bytes_transferred;
-            co_ -> resume();
-        }
-
-        boost::system::error_code& e_;
-        coroutine_pointer co_;
-        std::size_t& bytes_transferred_;
-    };
 public:
     descriptor_basic(io_service_type& io_s)
-        :io_service_(io_s),descriptor_(io_s.get_impl()) {
+        :boost::asio::posix::stream_descriptor(io_s) {
 
     }
 
 
     descriptor_basic(io_service_type& io_s,const native_handle_type& handle)
-        :io_service_(io_s),descriptor_(io_s.get_impl(),handle) {
+        :boost::asio::posix::stream_descriptor(io_s,handle) {
 
     }
 
@@ -59,75 +48,66 @@ public:
     
 public:
 
-    std::size_t read(char* data,std::size_t size,coroutine_pointer co) {
+
+    template <typename MutableBufferSequence,typename CO>
+    std::size_t read_some(const MutableBufferSequence& buf,CO co,boost::system::error_code& e) {
         BOOST_ASSERT(co != NULL);
-        boost::system::error_code e;
         std::size_t bytes_transferred;
-        io_handler handler(co,e,bytes_transferred);
-        descriptor_.async_read_some(boost::asio::buffer(data,size), handler);
+        io_handler<CO> handler(co,e,bytes_transferred);
+        async_read_some(buf, handler);
         //////////////////////////////////
         co->yield();
         //////////////////////////////////
         if (e) {
-            throw boost::system::system_error(e);
+            ORCHID_DEBUG("description read error: %s",e.message().c_str());
         }
         return bytes_transferred; 
     }
 
-    std::size_t write(const char* data,std::size_t size,coroutine_pointer co) {
+    template <typename MutableBufferSequence,typename CO>
+    std::size_t read_some(const MutableBufferSequence& buf,CO co) {
         BOOST_ASSERT(co != NULL);
         boost::system::error_code e;
+        std::size_t bytes_transferred = read_some(buf,co,e);
+
+        if (e) {
+            // throw boost::system::system_error(e);
+            throw_error(e,"descriptor read");
+        }
+
+        return bytes_transferred; 
+    }
+
+
+    template <typename ConstBufferSequence,typename CO>
+    std::size_t write_some(const ConstBufferSequence& buf,CO co,boost::system::error_code& e) {
+        BOOST_ASSERT(co != NULL);
         std::size_t bytes_transferred;
-        io_handler handler(co,e,bytes_transferred);
-        descriptor_.async_write_some(boost::asio::buffer(data,size), handler);
+        io_handler<CO> handler(co,e,bytes_transferred);
+        async_write_some(buf, handler);
         //////////////////////////////////
         co->yield();
         //////////////////////////////////
         if (e) {
-            throw boost::system::system_error(e);
+            ORCHID_DEBUG("description write error: %s",e.message().c_str());
         }
         return bytes_transferred; 
     }
 
-    bool is_open() {
-        return descriptor_.is_open();
+
+    template <typename ConstBufferSequence,typename CO>
+    std::size_t write_some(const ConstBufferSequence& buf,CO co) {
+        BOOST_ASSERT(co != NULL);
+        boost::system::error_code e;
+        std::size_t bytes_transferred = write_some(buf,co,e);
+        if (e) {
+            // throw boost::system::system_error(e);
+            throw_error(e,"descriptor write");
+        }
+
+        return bytes_transferred; 
     }
 
-    impl_type& get_impl() {
-        return descriptor_;
-    }
-
-    const impl_type& get_impl() const {
-        return descriptor_;
-    }
-
-    void close() {
-        descriptor_.close();
-    }
-
-    const io_service_type& get_io_service() const {
-        return io_service_;
-    }
-
-    io_service_type& get_io_service() {
-        return io_service_;
-    }
-
-    void assign(const native_handle_type& handle) {
-        descriptor_.assign(handle);
-    }
-
-    native_handle_type release() {
-        return descriptor_.release();
-    }
-
-    native_handle_type native_handle() {
-        return descriptor_.native_handle();
-    }
-
-private:
-    io_service_type& io_service_;
-    impl_type descriptor_;
 
 
 };

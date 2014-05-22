@@ -18,10 +18,10 @@
 #include <boost/atomic.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
-#include <boost/function.hpp>
 
 #include "stack_allocator.hpp"
 #include "scheduler.hpp"
+#include "../utility/debug.hpp"
 
 namespace orchid { namespace detail {
 
@@ -49,6 +49,7 @@ public:
     typedef boost::context::fcontext_t context_type;
     typedef context_type* context_pointer_type;
     typedef boost::shared_ptr<self_type> coroutine_handle;
+    typedef boost::shared_ptr<self_type> coroutine_pointer;
     typedef boost::function<void(coroutine_handle)> func_type;
 
     static std::size_t default_stack_size() {
@@ -66,31 +67,38 @@ public:
     static void trampoline(intptr_t q) 
     {
         self_type* p = (self_type*)q;
+        ORCHID_DEBUG("sche:%lu,coroutine:%lu,start running",p->sche_id(),p->id());
         try {
+            if(p->is_stoped()) {
+                throw stack_unwind_exception();
+            }
             p -> f_(p -> get_handle());
-        } catch(stack_unwind_exception& e) {
+        } catch(const stack_unwind_exception& e) {
             //do nothing.
-            //std::cout<<"exit!!"<<std::endl;
+            ORCHID_DEBUG("sche:%lu,coroutine:%lu,stack unwind",p->sche_id(),p->id());
         }
         p -> is_dead_.store(true);
+        ORCHID_DEBUG("sche:%lu,coroutine:%lu,dead",p->sche_id(),p->id());
         boost::context::jump_fcontext(&p->ctx(),&p->sche_.ctx(),0); //NOTITY SCHEDULER that coroutine is dead
     }
 
 public:
 
     template <typename F>
-    coroutine_basic(Scheduler& s,const F& f,std::size_t stack_size)
+    coroutine_basic(Scheduler& s,unsigned long id,const F& f,std::size_t stack_size)
         :is_dead_(false),
         is_stoped_(false),
         alloc_(),
         f_(f),
-        sche_(s) {
+        sche_(s),id_(id) {
+            ORCHID_DEBUG("sche:%lu,coroutine:%lu,coroutine_basic",this->sche_id(),this->id());
             stack_size_ = allocator_type::adjust_stack_size(stack_size);
             stack_pointer_ = alloc_.allocate(stack_size_);
             ctx_ = boost::context::make_fcontext(stack_pointer_,stack_size_,trampoline);
     }
 
     ~coroutine_basic() {
+        ORCHID_DEBUG("sche:%lu,coroutine:%lu,~coroutine_basic()",sche_id(),id());
         alloc_.deallocate(stack_pointer_,stack_size_);
     }
 
@@ -100,10 +108,8 @@ public:
     //放弃运行，切换至调度器的上下文中
     //该函数只应该在当前协程的run函数中调用
     void yield() {
+        ORCHID_DEBUG("sche:%lu,coroutine:%lu,yield",sche_id(),id());
         BOOST_ASSERT(!is_dead());
-        if(is_stoped()) {
-            throw stack_unwind_exception();
-        }
         boost::context::jump_fcontext(&ctx(),&sche_.ctx(),0);
         if(is_stoped()) {
             //std::cout<<"throw here"<<std::endl;
@@ -111,20 +117,30 @@ public:
         }
     }
 
-    //恢复当前协程的上下文，但是并不是立即切换，
-    //而是将切换的请求在调度器的IO_SERVICE里面排队，等待切换回上次运行的现场
-    //该函数是线程安全的，可以被运行在其他调度器中的协程调用。
+
+    //恢复当前协程的上下文，立即切换
     void resume() {
-        if(is_stoped() || is_dead())
+        if(is_stoped() || is_dead()) {
+            ORCHID_DEBUG("sche:%lu,coroutine:%lu,resume in coroutine,stop:%s dead:%s",
+                sche_id(),id(),is_stoped()?"true":"false",is_dead()?"true":"false");
             return;
+        }
+        // ORCHID_DEBUG("sche:%lu,coroutine:%lu,resume",id(),sche_id());
         sche_.resume(this -> shared_from_this());
     }
-    //预先发送一个resume请求，并放弃运行，等待下次被切换到CPU上。
-    //该函数只应该在当前协程的run函数中调用。
-    void sleep() {
-        resume();
-        yield();
+
+    //恢复当前协程的上下文，但是并不是立即切换，
+    //而是将切换的请求在调度器的IO_SERVICE里面排队，等待切换回上次运行的现场
+    void sche_resume() {
+        if(is_stoped() || is_dead()) {
+            ORCHID_DEBUG("sche:%lu,coroutine:%lu,shce_resume in coroutine,stop:%s dead:%s",
+                sche_id(),id(),is_stoped()?"true":"false",is_dead()?"true":"false");
+            return;
+        }
+        // ORCHID_DEBUG("sche:%lu,coroutine:%lu,sche_resume",id(),sche_id());
+        sche_.post(boost::bind(&scheduler_type::resume,&sche_,this->shared_from_this()));
     }
+
     //获取当前协程的运行状态。
     //该函数是线程安全的。
     bool is_dead() {
@@ -157,6 +173,23 @@ public:
         return stack_size_;
     }
 
+    unsigned long id() const {
+        return id_;
+    }
+
+    unsigned long sche_id() const {
+        return sche_.id();
+    }
+
+    io_service_type& get_io_service() {
+        return sche_.get_io_service();
+    }
+
+    const io_service_type& get_io_service() const {
+        return sche_.get_io_service();
+    }
+
+
     ///////////////////////////////内部函数//////////////////////////////////////
 
     context_type& ctx() {
@@ -168,6 +201,7 @@ public:
     }
 
 private:
+    const unsigned long id_;
     boost::atomic_bool is_dead_;
     boost::atomic_bool is_stoped_;
     allocator_type alloc_;

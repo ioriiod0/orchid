@@ -10,38 +10,27 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <boost/assert.hpp>
+#include <boost/system/error_code.hpp>
+#include <boost/system/system_error.hpp>
+
 #include "io_service.hpp"
+#include "throw_error.hpp"
+#include "handlers.hpp"
+#include "../utility/debug.hpp"
 
 namespace orchid { namespace detail {
 
 
-template <typename Coroutine>
-class timer_basic {
+class timer_basic:public boost::asio::deadline_timer {
 public:
     typedef io_service io_service_type;
-    typedef boost::asio::deadline_timer impl_type;
-    typedef io_service io_server_type;
-    typedef Coroutine coroutine_type;
-    typedef boost::shared_ptr<coroutine_type> coroutine_pointer;
-    typedef timer_basic<Coroutine> self_type;
+    // typedef timer_basic<Coroutine> self_type;
+    // typedef Coroutine coroutine_type;
+    // typedef typename coroutine_type::coroutine_pointer coroutine_pointer;
 
-    struct timer_handler {
-        timer_handler(coroutine_pointer co,boost::system::error_code& e)
-            :co_(co),e_(e) {
 
-        }
-
-        void operator()(const boost::system::error_code& e) {
-            e_ = e;
-            co_ -> resume();
-        }
-
-        coroutine_pointer co_;
-        boost::system::error_code& e_;
-    };
 public:
-    timer_basic(io_server_type& io_s)
-        :io_service_(io_s),timer_(io_s.get_impl()) {
+    timer_basic(io_service_type& io_s):boost::asio::deadline_timer(io_s) {
 
     }
 
@@ -50,37 +39,35 @@ public:
     }
 public:
 
-    void sleep(std::size_t ms,coroutine_pointer co) {
+    template <typename CO>
+    void sleep(std::size_t ms,CO co,boost::system::error_code& e) {
         BOOST_ASSERT(co != NULL);
         if (ms == 0) {
-            co -> resume();
-            co -> yield();
             return;
         }
-        boost::system::error_code e;
-        timer_handler handler(co,e);
-        timer_.expires_from_now(boost::posix_time::milliseconds(ms));
-        timer_.async_wait(handler);
+        timer_handler<CO> handler(co,e);
+        expires_from_now(boost::posix_time::milliseconds(ms));
+        async_wait(handler);
         //////////////////////////
         co -> yield();
         /////////////////////////
         if(e) {
-            throw boost::system::system_error(e);
+            ORCHID_DEBUG("timer sleep error: %s",e.message().c_str());
+        }        
+        return;
+    }
+
+    template <typename CO>
+    void sleep(std::size_t ms,CO co) {
+        BOOST_ASSERT(co != NULL);
+        boost::system::error_code e;
+        sleep(ms,co,e);
+        if(e) {
+            // throw boost::system::system_error(e);
+            throw_error(e,"timer wait");
         }
     }
 
-
-    const io_service_type& get_io_service() const {
-        return io_service_;
-    }
-
-    io_service_type& get_io_service() {
-        return io_service_;
-    }
-
-private:
-    io_service_type& io_service_;
-    impl_type timer_;
 
 };
 

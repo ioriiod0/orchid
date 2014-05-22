@@ -26,7 +26,7 @@ typedef boost::shared_ptr<orchid::socket> socket_ptr;
 void handle_io(orchid::coroutine_handle co,socket_ptr sock,std::size_t buffer_size) {
     try {
         boost::scoped_array<char> buffer(new char[buffer_size]);
-        sock -> get_impl().set_option(boost::asio::ip::tcp::no_delay(true));
+        sock -> set_option(boost::asio::ip::tcp::no_delay(true));
         printf("accept_sucess!!\r\n");
         int n = 0;
         for (;;) {

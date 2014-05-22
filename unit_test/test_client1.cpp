@@ -10,8 +10,7 @@
 #include <string>
 #include <stdio.h>
 #include <iostream>
-#include <boost/iostreams/stream.hpp>
-#include <boost/iostreams/copy.hpp>
+#include <algorithm>
 #include <signal.h>
 
 #include "../orchid/all.hpp"
@@ -28,19 +27,31 @@ void handle_io(orchid::coroutine_handle co) {
     try {
         sock_.connect("127.0.0.1","5678",co);
         ORCHID_DEBUG("id %lu connect success",co->id());
-        orchid::buffered_reader<orchid::socket> reader(sock_,co,16);
-        orchid::buffered_writer<orchid::socket> writer(sock_,co,16);
+        orchid::writer<orchid::socket> writer(sock_,co);
+        std::size_t n;
 
-        std::string line("hello world!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
-        for(;;) {
-            ORCHID_DEBUG("id %lu before write",co->id());
-            writer.write(line.c_str(),line.size());
-            ORCHID_DEBUG("send:%s,%d",line.c_str(),line.size());
-            writer.flush();
-            ORCHID_DEBUG("id %lu before read",co->id());
-            n = reader.read_until(line,"\r\n");
-            ORCHID_DEBUG("id %lu recv %s",co->id(),line.c_str());
-        }
+        char buf[409600] = {0};
+        std::fill(buf,buf+64,'a');
+        n = writer.write(buf,64);
+        ORCHID_DEBUG("send %d bytes",n);
+
+        std::fill(buf,buf+1024,'b');
+        n = writer.write(buf,1024);
+        ORCHID_DEBUG("send %d bytes",n);
+
+        std::fill(buf,buf+409600,'c');
+        n = writer.write(buf,409600);
+        ORCHID_DEBUG("send %d bytes",n);
+
+        std::fill(buf,buf+409600,'d');
+        n = writer.write_at_least(buf,409600,4096);
+        ORCHID_DEBUG("send %d bytes",n);
+        
+        std::fill(buf,buf+409600,'e');
+        n = writer.write_full(buf,409600);
+        ORCHID_DEBUG("send %d bytes",n);
+
+        sock_.close();
  
     } catch (const orchid::io_error& e) {
         ORCHID_ERROR("id %lu msg:%s",co->id(),e.what());
@@ -66,8 +77,9 @@ void handle_sig(orchid::coroutine_handle co) {
 int main() {
     orchid::scheduler sche;
     sche.spawn(handle_sig);
-    for (int i=0;i<2;++i) {
-        sche.spawn(handle_io);
+    ORCHID_DEBUG("stack size:%d",orchid::coroutine::maximum_stack_size());
+    for (int i=0;i<1;++i) {
+        sche.spawn(handle_io,orchid::coroutine::maximum_stack_size());
     }
     sche.run();
 }

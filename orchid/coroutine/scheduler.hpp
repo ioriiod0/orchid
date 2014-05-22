@@ -21,6 +21,7 @@
 #include <boost/atomic.hpp>
 
 #include "stack_allocator.hpp"
+#include "../utility/debug.hpp"
 
 namespace orchid { namespace detail {
 
@@ -33,15 +34,19 @@ public:
     typedef Coroutine<self_type,allocator_type> coroutine_type;
     typedef boost::shared_ptr<coroutine_type> coroutine_pointer;
     typedef boost::context::fcontext_t context_type;
+public:
+    static boost::atomic<unsigned long> scheduler_id_gen_;
 
 public:
-    scheduler_basic() {
-
+    scheduler_basic():coroutine_id_gen_(0),id_(scheduler_id_gen_.fetch_add(1)) {
+        ORCHID_DEBUG("sche %lu: scheduler_basic()",id());
     }
     ~scheduler_basic() {
-        stop();
+        ORCHID_DEBUG("sche %lu: ~scheduler_basic()",id());
         typename std::set<coroutine_pointer>::iterator it;
         for(it = all_.begin();it != all_.end();++it) {
+            (*it) -> stop();
+            ORCHID_DEBUG("sche %lu: clear coroutine %lu",id(),(*it)->id());
             boost::context::jump_fcontext(&ctx_,&((*it)->ctx()),(intptr_t)((*it).get()));
             BOOST_ASSERT((*it) -> is_dead());
         }
@@ -51,26 +56,28 @@ public:
 public:
 
     void run() {
+        ORCHID_DEBUG("sche %lu run",id_);
         io_service_.run();
     }
 
     void stop() {
         io_service_.stop();
-        typename std::set<coroutine_pointer>::iterator it;
-        for(it = all_.begin();it != all_.end();++it) {
-            (*it) -> stop();
-        }
+        // typename std::set<coroutine_pointer>::iterator it;
+        // for(it = all_.begin();it != all_.end();++it) {
+        //     (*it) -> stop();
+        // }
     }
 
     template <typename F>
     void spawn(const F& f,std::size_t stack_size = coroutine_type::default_stack_size()) {
-        coroutine_pointer co(new coroutine_type(*this,f,stack_size));
+        coroutine_pointer co(new coroutine_type(*this,coroutine_id_gen_.fetch_add(1),f,stack_size));
         io_service_.post(boost::bind(&self_type::do_spawn,this,co));
+        ORCHID_DEBUG("sche %lu spawn done",id_);
     }
 
     void resume(coroutine_pointer co) {
         BOOST_ASSERT(co != NULL);
-        io_service_.post(boost::bind(&self_type::do_schedule,this,co));
+        do_schedule(co);
     }
 
     template <typename F>
@@ -95,10 +102,15 @@ public:
         return ctx_;
     }
 
+    unsigned long id() const {
+        return id_;
+    }
+
 private:
 
     void do_schedule(coroutine_pointer co) {
         //jump to coroutine
+        ORCHID_DEBUG("sche:%lu,coroutine:%lu,resume",id(),co->id());
         boost::context::jump_fcontext(&ctx_,&co->ctx(),(intptr_t)(co.get()));
         if(co -> is_dead()) {
             all_.erase(co);
@@ -106,15 +118,23 @@ private:
     }
 
     void do_spawn(coroutine_pointer co) {
+        ORCHID_DEBUG("sche %lu do spawn",id_);
         all_.insert(co);
         do_schedule(co);
     }
 
 private:
+    const unsigned long id_;
+    boost::atomic<unsigned long> coroutine_id_gen_;
     context_type ctx_;
     std::set<coroutine_pointer> all_;
     io_service_type io_service_;
 };
+
+
+
+template <template <class,class> class Coroutine,typename IOservice,typename Alloc>
+boost::atomic<unsigned long> scheduler_basic<Coroutine,IOservice,Alloc>::scheduler_id_gen_(0);
 
 
 } }

@@ -41,7 +41,7 @@ void handle_io(orchid::coroutine_handle co,orchid::chan<counter_t>& ch,
     try {
         boost::scoped_array<char> buff(new char[buffer_size]);
         sock -> connect("127.0.0.1","5678",co);
-        sock -> get_impl().set_option(boost::asio::ip::tcp::no_delay(true));
+        sock -> set_option(boost::asio::ip::tcp::no_delay(true));
         printf("connect_sucess!!\r\n");
         for(;;) {
             n = sock -> write(buff.get(),n,co);
