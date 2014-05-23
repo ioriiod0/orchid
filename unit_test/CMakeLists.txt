@@ -31,22 +31,18 @@ ADD_EXECUTABLE(hello_world hello_world.cpp)
 
 TARGET_LINK_LIBRARIES(hello_world boost_context boost_system boost_thread)
 
-TARGET_LINK_LIBRARIES(client boost_context boost_system boost_thread)
-TARGET_LINK_LIBRARIES(server boost_context boost_system boost_thread)
+TARGET_LINK_LIBRARIES(client boost_context boost_system boost_thread pthread)
+TARGET_LINK_LIBRARIES(server boost_context boost_system boost_thread pthread)
 
-TARGET_LINK_LIBRARIES(client1 boost_context boost_system boost_thread)
-TARGET_LINK_LIBRARIES(server1 boost_context boost_system boost_thread)
+TARGET_LINK_LIBRARIES(client1 boost_context boost_system boost_thread pthread)
+TARGET_LINK_LIBRARIES(server1 boost_context boost_system boost_thread pthread)
 
-TARGET_LINK_LIBRARIES(client2 boost_context boost_system boost_thread)
-TARGET_LINK_LIBRARIES(server2 boost_context boost_system boost_thread)
+TARGET_LINK_LIBRARIES(client2 boost_context boost_system boost_thread pthread)
+TARGET_LINK_LIBRARIES(server2 boost_context boost_system boost_thread pthread)
 
-TARGET_LINK_LIBRARIES(chan boost_context boost_system boost_thread)
-TARGET_LINK_LIBRARIES(benchmark_orchid_client boost_context boost_system boost_thread)
-TARGET_LINK_LIBRARIES(benchmark_orchid_server boost_context boost_system boost_thread)
-TARGET_LINK_LIBRARIES(benchmark_asio_client boost_system boost_thread)
-TARGET_LINK_LIBRARIES(benchmark_asio_server boost_thread boost_system)
-TARGET_LINK_LIBRARIES(chat_client boost_context boost_system boost_thread)
-TARGET_LINK_LIBRARIES(chat_server boost_context boost_system boost_thread)
-TARGET_LINK_LIBRARIES(worker boost_context boost_system boost_thread)
+TARGET_LINK_LIBRARIES(chan boost_context boost_system boost_thread pthread)
+TARGET_LINK_LIBRARIES(chat_client boost_context boost_system boost_thread pthread)
+TARGET_LINK_LIBRARIES(chat_server boost_context boost_system boost_thread pthread)
+TARGET_LINK_LIBRARIES(worker boost_context boost_system boost_thread pthread)
 
 
