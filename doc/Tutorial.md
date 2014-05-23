@@ -309,6 +309,7 @@ chan 有3个重要的接口：
     void test(orchid::coroutine_handle co) {
         int a = 1,b = 2;
         int c;
+        //启动一个一次性的worker，并等待worker运行结束。
         orchid::run_in_thread([a,b,&c](){
             boost::this_thread::sleep(boost::posix_time::seconds(3));
             c = a+b;
@@ -326,6 +327,7 @@ chan 有3个重要的接口：
         sche.spawn([&pool](orchid::coroutine_handle co){
             int a = 1,b = 2;
             int c;
+            //将任务投递到worker pool中，并等待任务结束。
             pool.post([a,b,&c](){
                 boost::this_thread::sleep(boost::posix_time::seconds(3));
                 c = a+b;
