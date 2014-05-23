@@ -1,6 +1,8 @@
 INCLUDE_DIRECTORIES(../orchid)
 INCLUDE_DIRECTORIES(/usr/local/include)
 LINK_DIRECTORIES(/usr/local/lib)
+INCLUDE_DIRECTORIES(/usr/include)
+LINK_DIRECTORIES(/usr/lib)
 
 ADD_EXECUTABLE(client test_client.cpp)
 ADD_EXECUTABLE(server test_server.cpp)
