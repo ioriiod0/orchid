@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <iostream>
 #include <cmath>
 #include <boost/assert.hpp>
