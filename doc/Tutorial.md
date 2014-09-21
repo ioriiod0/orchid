@@ -238,12 +238,12 @@ boost::bind将f1从void(orchid::coroutine,const char*)适配成了void(orchid::c
 chan 有3个重要的接口：
 
     // 向chan中发送一个对象。t为要发送的对象，co为当前协程的协程句柄。
-    // 当队列为空时，co会阻塞，当队列不在为空时，阻塞的协程会被唤醒；
+    // 当队列满时，co会阻塞，当队列不再满时，阻塞的协程会被唤醒；
     // 发送成功返回true，否则false。
     bool send(const U& t,coroutine_pointer co); 
 
     // 从chan中接收一对象。
-    // 当队列满时，co会阻塞，当队列不再满时，阻塞的协程会被唤醒。
+    // 当队列空时，co会阻塞，当队列不再空时，阻塞的协程会被唤醒。
     // 接收成功返回true，否则false。
     bool recv(U& t,coroutine_pointer co); 
 
