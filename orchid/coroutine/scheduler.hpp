@@ -38,7 +38,7 @@ public:
     static boost::atomic<unsigned long> scheduler_id_gen_;
 
 public:
-    scheduler_basic():coroutine_id_gen_(0),id_(scheduler_id_gen_.fetch_add(1)) {
+	scheduler_basic() :id_(scheduler_id_gen_.fetch_add(1)), coroutine_id_gen_(0) {
         ORCHID_DEBUG("sche %lu: scheduler_basic()",id());
     }
     ~scheduler_basic() {
@@ -47,7 +47,7 @@ public:
         for(it = all_.begin();it != all_.end();++it) {
             (*it) -> stop();
             ORCHID_DEBUG("sche %lu: clear coroutine %lu",id(),(*it)->id());
-            boost::context::jump_fcontext(&ctx_,&((*it)->ctx()),(intptr_t)((*it).get()));
+            boost::context::jump_fcontext(&ctx_,(*it)->ctx(),(intptr_t)((*it).get()));
             BOOST_ASSERT((*it) -> is_dead());
         }
         all_.clear();
@@ -111,7 +111,7 @@ private:
     void do_schedule(coroutine_pointer co) {
         //jump to coroutine
         ORCHID_DEBUG("sche:%lu,coroutine:%lu,resume",id(),co->id());
-        boost::context::jump_fcontext(&ctx_,&co->ctx(),(intptr_t)(co.get()));
+        boost::context::jump_fcontext(&ctx_,co->ctx(),(intptr_t)(co.get()));
         if(co -> is_dead()) {
             all_.erase(co);
         }

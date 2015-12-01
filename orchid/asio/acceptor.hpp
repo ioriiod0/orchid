@@ -65,6 +65,23 @@ public:
         
     }
 
+	void bind_and_listen(const boost::asio::ip::tcp::endpoint& addr, bool reuse_addr) {
+		open(addr.protocol());
+		if (reuse_addr)
+			set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
+		bind(addr);
+		listen(boost::asio::socket_base::max_connections);
+	}
+
+	void bind_and_listen(const boost::asio::ip::tcp::endpoint& addr, bool reuse_addr, boost::system::error_code& e) {
+		try {
+			bind_and_listen(addr, reuse_addr);
+		}
+		catch (const boost::system::system_error& ex) {
+			e = ex.code();
+			ORCHID_DEBUG("bind_and_listen error: %s", e.message().c_str());
+		}
+	}
 
     template <typename CO>
     void accept(socket_type& sock,CO co,boost::system::error_code& e) {

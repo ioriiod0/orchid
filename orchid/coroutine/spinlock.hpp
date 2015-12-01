@@ -9,28 +9,21 @@
 
 #ifndef __ORCHID_SPINLOCK_H__
 #define __ORCHID_SPINLOCK_H__
-#include <boost/atomic.hpp>
-#include <boost/utility.hpp>
-
+#include <boost/smart_ptr/detail/spinlock.hpp>
 namespace orchid {namespace detail {
-
 class spinlock:boost::noncopyable {
 private:
-  typedef enum {Locked, Unlocked} LockState;
-  boost::atomic<LockState> state_;
-
+	boost::detail::spinlock lock_;
 public:
-  spinlock() : state_(Unlocked) {}
+	spinlock(){ lock_ = BOOST_DETAIL_SPINLOCK_INIT; }
   
   void lock()
   {
-    while (state_.exchange(Locked, boost::memory_order_acquire) == Locked) {
-      /* busy-wait */
-    }
+	  lock_.lock();
   }
   void unlock()
   {
-    state_.store(Unlocked, boost::memory_order_release);
+	  lock_.unlock();
   }
 };
 

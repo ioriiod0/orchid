@@ -5,6 +5,10 @@
 // Last Change  : 11/18/2012 01:35 AM
 // Description  : 
 // ====================================================================================
+
+#ifndef __ORCHID_CHAN_H__
+#define __ORCHID_CHAN_H__
+
 #include <iostream>
 #include <memory>
 #include <queue>
@@ -30,7 +34,7 @@ public:
     typedef CO coroutine_pointer;
 public:
     chan_basic(std::size_t cap)
-        :cap_(cap),array_(new T[cap]),r_(0),
+		:cap_(cap), size_(0),array_(new T[cap]), r_(0),
         w_(0),is_closed_(false) {
     }
     ~chan_basic() {
@@ -145,3 +149,5 @@ private:
 
 }
 }
+
+#endif

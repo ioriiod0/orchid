@@ -18,6 +18,7 @@
 #include "coroutine/chan.hpp"
 #include "coroutine/stack_allocator.hpp"
 #include "coroutine/scheduler_group.hpp"
+#include "coroutine/chan_map.hpp"
 
 #include "asio/acceptor.hpp"
 #include "asio/socket.hpp"
@@ -121,6 +122,20 @@ public:
     }
 };
 
+
+template <typename K, typename T>
+class chan_map :public detail::chan_map_basic<coroutine_handle, K, T> {
+public:
+	typedef chan_map<K, T> self_type;
+public:
+	chan_map(std::size_t chan_cap)
+		:detail::chan_map_basic<coroutine_handle, K, T>(chan_cap) {
+
+		}
+	~chan_map() {
+
+	}
+};
 
 }
 

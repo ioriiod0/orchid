@@ -24,12 +24,12 @@ namespace orchid { namespace detail {
 
     };
 
-    void throw_error(const boost::system::error_code& err) {
+    static void throw_error(const boost::system::error_code& err) {
       io_error e(err);
       throw e;
     }
 
-    void throw_error(const boost::system::error_code& err, const char* location) {
+	static void throw_error(const boost::system::error_code& err, const char* location) {
       io_error e(err, location);
       throw e;
     }

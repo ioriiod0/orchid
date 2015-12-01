@@ -47,7 +47,6 @@ public:
     typedef Scheduler scheduler_type;
     typedef typename Scheduler::io_service_type io_service_type;
     typedef boost::context::fcontext_t context_type;
-    typedef context_type* context_pointer_type;
     typedef boost::shared_ptr<self_type> coroutine_handle;
     typedef boost::shared_ptr<self_type> coroutine_pointer;
     typedef boost::function<void(coroutine_handle)> func_type;
@@ -79,18 +78,18 @@ public:
         }
         p -> is_dead_.store(true);
         ORCHID_DEBUG("sche:%lu,coroutine:%lu,dead",p->sche_id(),p->id());
-        boost::context::jump_fcontext(&p->ctx(),&p->sche_.ctx(),0); //NOTITY SCHEDULER that coroutine is dead
+        boost::context::jump_fcontext(&p->ctx(),p->sche_.ctx(),0); //NOTITY SCHEDULER that coroutine is dead
     }
 
 public:
 
     template <typename F>
     coroutine_basic(Scheduler& s,unsigned long id,const F& f,std::size_t stack_size)
-        :is_dead_(false),
+		:id_(id),
+		is_dead_(false),
         is_stoped_(false),
         alloc_(),
-        f_(f),
-        sche_(s),id_(id) {
+        f_(f), sche_(s) {
             ORCHID_DEBUG("sche:%lu,coroutine:%lu,coroutine_basic",this->sche_id(),this->id());
             stack_size_ = allocator_type::adjust_stack_size(stack_size);
             stack_pointer_ = alloc_.allocate(stack_size_);
@@ -110,7 +109,7 @@ public:
     void yield() {
         ORCHID_DEBUG("sche:%lu,coroutine:%lu,yield",sche_id(),id());
         BOOST_ASSERT(!is_dead());
-        boost::context::jump_fcontext(&ctx(),&sche_.ctx(),0);
+        boost::context::jump_fcontext(&ctx(),sche_.ctx(),0);
         if(is_stoped()) {
             //std::cout<<"throw here"<<std::endl;
             throw stack_unwind_exception();
@@ -193,11 +192,11 @@ public:
     ///////////////////////////////内部函数//////////////////////////////////////
 
     context_type& ctx() {
-        return *ctx_;
+        return ctx_;
     }
 
     const context_type& ctx() const {
-        return *ctx_;
+        return ctx_;
     }
 
 private:
@@ -207,7 +206,7 @@ private:
     allocator_type alloc_;
     std::size_t stack_size_;
     void* stack_pointer_;
-    context_pointer_type ctx_;
+    context_type ctx_;
     func_type f_;
     scheduler_type& sche_;
 };

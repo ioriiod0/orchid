@@ -45,6 +45,31 @@ public:
     }
 public:
 
+	template <typename CO>
+	void connect(const boost::asio::ip::tcp::endpoint& addr, CO co, boost::system::error_code& e) {
+		BOOST_ASSERT(co != NULL);
+		/////////////////////////////////////////
+		connect_without_resolver_handler<CO> c_handler(co, e);
+		async_connect(addr, c_handler);
+		co->yield();
+		////////////////////////////////////
+		if (e) {
+			ORCHID_DEBUG("socket connect error: %s", e.message().c_str());
+		}
+		return;
+	}
+
+
+	template <typename CO>
+	void connect(const boost::asio::ip::tcp::endpoint& addr, CO co) {
+		BOOST_ASSERT(co != NULL);
+		boost::system::error_code e;
+		connect(addr, co, e);
+		if (e) {
+			throw_error(e, "socket connect");
+		}
+	}
+
     template <typename CO>
     void connect(const std::string& host,const std::string& port,CO co,boost::system::error_code& e) {
         BOOST_ASSERT(co != NULL);
