@@ -63,6 +63,27 @@ struct connect_handler {
 };
 
 template <typename CO>
+struct connect_without_resolver_handler {
+
+	typedef CO coroutine_pointer;
+
+	connect_without_resolver_handler(coroutine_pointer co,
+		boost::system::error_code& e)
+		:e_(e), co_(co) {
+
+	}
+
+	void operator()(const boost::system::error_code& e) {
+		e_ = e;
+		co_->resume();
+	}
+
+	boost::system::error_code& e_;
+	coroutine_pointer co_;
+
+};
+
+template <typename CO>
 struct sig_handler {
 
     typedef CO coroutine_pointer;
